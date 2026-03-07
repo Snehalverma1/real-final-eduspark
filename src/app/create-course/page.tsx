@@ -18,7 +18,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PlusCircle, Trash2, Book, Film, Loader2 } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
-import { useUser, useFirestore } from "@/firebase";
+import { useUser, useFirestore, errorEmitter, FirestorePermissionError } from "@/firebase";
 import { doc, collection, setDoc } from 'firebase/firestore';
 import { useToast } from "@/hooks/use-toast";
 import { useRouter } from "next/navigation";
@@ -78,37 +78,37 @@ export default function CreateCoursePage() {
       return;
     }
 
+    const courseId = doc(collection(firestore, 'users', user.uid, 'draftCourses')).id;
+    const courseRef = doc(firestore, `users/${user.uid}/draftCourses`, courseId);
+
+    const finalCourseData = {
+      id: courseId,
+      title: data.title,
+      description: data.description,
+      instructorId: user.uid,
+      status: 'Draft' as const,
+      targetClass: data.targetClass,
+      difficultyLevel: data.difficultyLevel,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      thumbnailUrl: `https://picsum.photos/seed/${courseId}/600/400`,
+      chapters: data.chapters.map((chapter, cIndex) => ({
+        id: `ch_${cIndex + 1}`,
+        title: chapter.title,
+        order: cIndex + 1,
+        lectures: chapter.lectures.map((lecture, lIndex) => {
+          const { duration, ...rest } = lecture;
+          return {
+            ...rest,
+            id: `lec_${cIndex + 1}_${lIndex + 1}`,
+            durationSeconds: duration * 60,
+          };
+        }),
+      })),
+    };
+
     try {
-      // Path for draft courses: /users/{instructorId}/draftCourses/{courseId}
-      const courseId = doc(collection(firestore, 'users', user.uid, 'draftCourses')).id;
-
-      const finalCourseData = {
-        id: courseId,
-        title: data.title,
-        description: data.description,
-        instructorId: user.uid,
-        status: 'Draft' as const,
-        targetClass: data.targetClass,
-        difficultyLevel: data.difficultyLevel,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-        thumbnailUrl: `https://picsum.photos/seed/${courseId}/600/400`,
-        chapters: data.chapters.map((chapter, cIndex) => ({
-          id: `ch_${cIndex + 1}`,
-          title: chapter.title,
-          order: cIndex + 1,
-          lectures: chapter.lectures.map((lecture, lIndex) => {
-            const { duration, ...rest } = lecture;
-            return {
-              ...rest,
-              id: `lec_${cIndex + 1}_${lIndex + 1}`,
-              durationSeconds: duration * 60,
-            };
-          }),
-        })),
-      };
-
-      await setDoc(doc(firestore, `users/${user.uid}/draftCourses`, courseId), finalCourseData);
+      await setDoc(courseRef, finalCourseData);
 
       toast({
         title: "Course Created!",
@@ -118,10 +118,18 @@ export default function CreateCoursePage() {
       router.push('/');
     } catch (error: any) {
       console.error("Error creating course: ", error);
+      
+      const permissionError = new FirestorePermissionError({
+          path: courseRef.path,
+          operation: 'create',
+          requestResourceData: finalCourseData,
+      });
+      errorEmitter.emit('permission-error', permissionError);
+        
       toast({
         variant: "destructive",
         title: "Uh oh! Something went wrong.",
-        description: error.message || "Could not save the course. Please try again.",
+        description: "Could not save the course. Please try again.",
       });
     }
   }
@@ -244,7 +252,7 @@ export default function CreateCoursePage() {
             <Button
               type="button"
               variant="outline"
-              onClick={() => appendChapter({ title: "", lectures: [] })}
+              onClick={() => appendChapter({ title: "New Chapter", lectures: [{ lectureNumber: 1, title: "New Lecture", type: "text", content: "Your lesson content here.", duration: 5 }] })}
               className="w-full"
             >
               <PlusCircle className="mr-2 h-4 w-4" /> Add Chapter
@@ -397,7 +405,7 @@ function ChapterForm({ chapterIndex, form, removeChapter }: ChapterFormProps) {
             <Button
             type="button"
             variant="outline"
-            onClick={() => appendLecture({ lectureNumber: lectureFields.length + 1, title: "", type: "text", content: "", duration: 5 })}
+            onClick={() => appendLecture({ lectureNumber: lectureFields.length + 1, title: "New Lecture", type: "text", content: "Your lesson content here.", duration: 5 })}
             className="w-full"
             >
             <PlusCircle className="mr-2 h-4 w-4" /> Add Lecture
