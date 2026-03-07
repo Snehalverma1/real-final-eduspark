@@ -67,11 +67,6 @@ service cloud.firestore {
       return isSignedIn() && exists(/databases/$(database)/documents/users/$(request.auth.uid)/enrollments/$(courseId));
     }
 
-    // Validates that critical, immutable fields for a UserProfile are not changed on update.
-    function isImmutableUser() {
-      return request.resource.data.id == resource.data.id;
-    }
-
     // Validates that critical, immutable fields for a Course are not changed on update.
     function isImmutableCourse() {
       return request.resource.data.id == resource.data.id &&
@@ -108,7 +103,7 @@ service cloud.firestore {
     // Path: /userProfiles/{userId}
     // allow (create) An authenticated user creating their own profile document.
     // allow (get) Any authenticated user reading another user's profile.
-    // allow (update) A user updating their own profile document.
+    // allow (update) A user updating their own profile document, or an admin updating any profile.
     // deny (list) Any user attempting to list all user profiles, to prevent user enumeration.
     // deny (delete) A user trying to delete another user's profile.
     // principle Restricts access to a user's own data tree and prevents user enumeration.
@@ -116,7 +111,18 @@ service cloud.firestore {
       allow get: if isSignedIn();
       allow list: if false; // Deny listing user profiles
       allow create: if isOwner(userId) && request.resource.data.id == userId;
-      allow update: if isOwner(userId) && docExists() && isImmutableUser();
+      allow update: if (isOwner(userId) && docExists()
+                    // User can update their profile, but not their role or status
+                    && request.resource.data.id == resource.data.id
+                    && request.resource.data.email == resource.data.email // email is immutable
+                    && request.resource.data.role == resource.data.role // role is immutable by user
+                    && request.resource.data.applicationStatus == resource.data.applicationStatus // status is immutable by user
+                    && request.resource.data.createdAt == resource.data.createdAt) // createdAt is immutable
+                 || (isAdmin() && docExists()
+                    // Admin can update profile, including role and status
+                    && request.resource.data.id == resource.data.id
+                    && request.resource.data.email == resource.data.email
+                    && request.resource.data.createdAt == resource.data.createdAt);
       allow delete: if isOwner(userId) && docExists();
     }
 

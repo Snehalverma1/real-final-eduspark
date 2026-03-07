@@ -29,9 +29,36 @@
           "description": "URL to the user's profile picture.",
           "format": "uri"
         },
-        "isInstructor": {
-          "type": "boolean",
-          "description": "Indicates if the user has instructor privileges and can create courses."
+        "role": {
+          "type": "string",
+          "description": "The role of the user on the platform.",
+          "enum": [
+            "student",
+            "class-teacher",
+            "subject-teacher",
+            "admin"
+          ]
+        },
+        "applicationStatus": {
+          "type": "string",
+          "description": "The status of a teacher's application, if applicable.",
+          "enum": [
+            "pending",
+            "approved",
+            "rejected"
+          ]
+        },
+        "subjects": {
+          "type": "array",
+          "description": "For subject teachers, a list of subjects they teach.",
+          "items": {
+            "type": "string"
+          }
+        },
+        "experience": {
+          "type": "string",
+          "description": "For subject teachers, a summary of their teaching experience.",
+          "format": "text"
         },
         "createdAt": {
           "type": "string",
@@ -48,7 +75,7 @@
         "id",
         "email",
         "name",
-        "isInstructor",
+        "role",
         "createdAt",
         "updatedAt"
       ]
