@@ -112,6 +112,78 @@
         "name"
       ]
     },
+    "Lecture": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Lecture",
+      "type": "object",
+      "description": "Represents an individual lecture or content unit within a chapter.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the Lecture entity."
+        },
+        "title": {
+          "type": "string",
+          "description": "The title of the lecture."
+        },
+        "lectureNumber": {
+          "type": "number",
+          "description": "The sequential number of this lecture within its chapter."
+        },
+        "type": {
+          "type": "string",
+          "description": "The type of content for the lecture (e.g., 'video', 'text')."
+        },
+        "content": {
+          "type": "string",
+          "description": "The content of the lecture (URL for video, text for text)."
+        },
+        "durationSeconds": {
+          "type": "number",
+          "description": "The duration of the lecture in seconds."
+        }
+      },
+      "required": [
+        "id",
+        "title",
+        "lectureNumber",
+        "type",
+        "content"
+      ]
+    },
+    "Chapter": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Chapter",
+      "type": "object",
+      "description": "Represents a chapter within a course, containing a list of lectures.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the Chapter entity."
+        },
+        "title": {
+          "type": "string",
+          "description": "The title of the chapter."
+        },
+        "order": {
+          "type": "number",
+          "description": "The sequential order of this chapter within its course."
+        },
+        "lectures": {
+          "type": "array",
+          "description": "An array of lectures that belong to this chapter.",
+          "items": {
+            "$ref": "#/backend/entities/Lecture"
+          }
+        }
+      },
+      "required": [
+        "id",
+        "title",
+        "order",
+        "lectures"
+      ]
+    },
     "Course": {
       "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "Course",
@@ -154,6 +226,17 @@
             "type": "string"
           }
         },
+        "targetClass": {
+          "type": "string",
+          "description": "The specific class this course is intended for (e.g., '8', '10')."
+        },
+        "chapters": {
+          "type": "array",
+          "description": "An array of chapters that make up the course.",
+          "items": {
+            "$ref": "#/backend/entities/Chapter"
+          }
+        },
         "createdAt": {
           "type": "string",
           "description": "Timestamp when the course was created.",
@@ -175,73 +258,11 @@
         "description",
         "instructorId",
         "difficultyLevel",
+        "targetClass",
+        "chapters",
         "createdAt",
         "updatedAt",
         "status"
-      ]
-    },
-    "Lesson": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
-      "title": "Lesson",
-      "type": "object",
-      "description": "Represents an individual lecture or content unit within a course.",
-      "properties": {
-        "id": {
-          "type": "string",
-          "description": "Unique identifier for the Lesson entity."
-        },
-        "courseId": {
-          "type": "string",
-          "description": "Reference to the Course this lesson belongs to. (Relationship: Course 1:N Lesson)"
-        },
-        "title": {
-          "type": "string",
-          "description": "The title of the lesson."
-        },
-        "description": {
-          "type": "string",
-          "description": "A brief description of the lesson content."
-        },
-        "type": {
-          "type": "string",
-          "description": "The type of content for the lesson (e.g., 'video', 'text')."
-        },
-        "contentUrl": {
-          "type": "string",
-          "description": "URL to the main content resource (e.g., video file, external document).",
-          "format": "uri"
-        },
-        "textContent": {
-          "type": "string",
-          "description": "The full text content of the lesson, if it is a text-based lesson."
-        },
-        "durationSeconds": {
-          "type": "number",
-          "description": "The duration of the lesson in seconds, primarily for video content."
-        },
-        "order": {
-          "type": "number",
-          "description": "The sequential order of this lesson within its course."
-        },
-        "createdAt": {
-          "type": "string",
-          "description": "Timestamp when the lesson was created.",
-          "format": "date-time"
-        },
-        "updatedAt": {
-          "type": "string",
-          "description": "Timestamp when the lesson was last updated.",
-          "format": "date-time"
-        }
-      },
-      "required": [
-        "id",
-        "courseId",
-        "title",
-        "type",
-        "order",
-        "createdAt",
-        "updatedAt"
       ]
     },
     "Enrollment": {
@@ -287,50 +308,6 @@
         "courseId",
         "enrollmentDate",
         "status"
-      ]
-    },
-    "LessonCompletion": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
-      "title": "LessonCompletion",
-      "type": "object",
-      "description": "Tracks a student's progress and completion status for individual lessons within a specific course enrollment.",
-      "properties": {
-        "id": {
-          "type": "string",
-          "description": "Unique identifier for the LessonCompletion entity."
-        },
-        "enrollmentId": {
-          "type": "string",
-          "description": "Reference to the Enrollment record for which this lesson completion applies. (Relationship: Enrollment 1:N LessonCompletion)"
-        },
-        "lessonId": {
-          "type": "string",
-          "description": "Reference to the Lesson that is being tracked for completion. (Relationship: Lesson 1:N LessonCompletion)"
-        },
-        "isCompleted": {
-          "type": "boolean",
-          "description": "Indicates whether the lesson has been marked as completed by the student."
-        },
-        "completedAt": {
-          "type": "string",
-          "description": "Timestamp when the lesson was marked as completed.",
-          "format": "date-time"
-        },
-        "lastViewedAt": {
-          "type": "string",
-          "description": "Timestamp when the student last viewed this lesson.",
-          "format": "date-time"
-        },
-        "watchProgressSeconds": {
-          "type": "number",
-          "description": "The number of seconds watched for video lessons, allowing for resume functionality."
-        }
-      },
-      "required": [
-        "id",
-        "enrollmentId",
-        "lessonId",
-        "isCompleted"
       ]
     }
   },
@@ -427,50 +404,6 @@
         }
       },
       {
-        "path": "/courses/{courseId}/lessons/{lessonId}",
-        "definition": {
-          "entityName": "Lesson",
-          "schema": {
-            "$ref": "#/backend/entities/Lesson"
-          },
-          "description": "Lessons belonging to 'Published' or 'Archived' courses. Includes denormalized 'courseInstructorId' and 'courseStatus' (which should be 'Published' or 'Archived') for authorization independence. Readable by students enrolled in the parent course (checked via `/users/{studentId}/enrollments/{courseId}`), writable only by the `courseInstructorId`. The 'id' field within the document must match the path's 'lessonId'. The 'courseId' field in the document must match the path's 'courseId'.",
-          "params": [
-            {
-              "name": "courseId",
-              "description": "Unique identifier for the parent published/archived course."
-            },
-            {
-              "name": "lessonId",
-              "description": "Unique identifier for the lesson."
-            }
-          ]
-        }
-      },
-      {
-        "path": "/users/{instructorId}/draftCourses/{courseId}/lessons/{lessonId}",
-        "definition": {
-          "entityName": "Lesson",
-          "schema": {
-            "$ref": "#/backend/entities/Lesson"
-          },
-          "description": "Lessons belonging to draft courses, accessible only to the creating instructor. Includes denormalized 'courseInstructorId' and 'courseStatus' (which should be 'Draft') for authorization independence. The 'instructorId' in the path must match `request.auth.uid` and the document's 'courseInstructorId' field for read/write. The 'id' field within the document must match the path's 'lessonId'. The 'courseId' field in the document must match the path's 'courseId'. The 'courseInstructorId' field in the document must match the path's 'instructorId'.",
-          "params": [
-            {
-              "name": "instructorId",
-              "description": "The Firebase Authentication UID of the instructor."
-            },
-            {
-              "name": "courseId",
-              "description": "Unique identifier for the parent draft course."
-            },
-            {
-              "name": "lessonId",
-              "description": "Unique identifier for the lesson."
-            }
-          ]
-        }
-      },
-      {
         "path": "/users/{studentId}/enrollments/{courseId}",
         "definition": {
           "entityName": "Enrollment",
@@ -489,33 +422,8 @@
             }
           ]
         }
-      },
-      {
-        "path": "/users/{studentId}/enrollments/{courseId}/lessonCompletions/{lessonCompletionId}",
-        "definition": {
-          "entityName": "LessonCompletion",
-          "schema": {
-            "$ref": "#/backend/entities/LessonCompletion"
-          },
-          "description": "Tracks a student's progress and completion for individual lessons within an enrollment. Only the `studentId` can read/write their own lesson completions. The `studentId` in the path must match `request.auth.uid` and the document's 'studentId' field for access. The 'id' field within the document must match the path's 'lessonCompletionId'. The 'enrollmentId' in the document must match the path's 'courseId'. The 'studentId' field in the document must match the path's 'studentId'.",
-          "params": [
-            {
-              "name": "studentId",
-              "description": "The Firebase Authentication UID of the student."
-            },
-            {
-              "name": "courseId",
-              "description": "Unique identifier for the course (the parent enrollment document ID)."
-            },
-            {
-              "name": "lessonCompletionId",
-              "description": "Unique identifier for the lesson completion record."
-            }
-          ]
-        }
       }
     ],
-    "reasoning": "The Firestore data structure for EduSpark prioritizes secure, scalable, and debuggable authorization rules by strictly adhering to the core design principles. The foundational strategy is **Authorization Independence via Denormalization** to eliminate `get()` calls in security rules, ensuring atomic operations and simplifying rule logic.\n\n**Authorization Independence:**\n1.  **User Profiles and Roles:** User profiles (`/userProfiles/{userId}`) are directly path-based, meaning `request.auth.uid` directly identifies the owner for write operations. Global roles, such as administrators, are managed via an existence-based collection (`/roles_admins/{userId}`). This allows rules to check `exists(/roles_admins/$(request.auth.uid))` without needing to read any data from `UserProfile` documents themselves, thus maintaining authorization independence.\n2.  **Course Ownership & Status Segregation:** To handle different access patterns for course states, courses are segregated structurally. 'Published' or 'Archived' courses reside in `/courses/{courseId}`, where the `instructorId` is denormalized directly into the course document. This enables rules to verify `request.auth.uid == resource.data.instructorId` without `get()` calls. 'Draft' courses are kept private within `/users/{instructorId}/draftCourses/{courseId}`, leveraging path-based ownership (`request.auth.uid == instructorId`) and also denormalizing `instructorId` within the document for redundancy and clarity. This structural segregation simplifies rules by ensuring all documents in a given collection path share a homogeneous security posture.\n3.  **Lesson Content:** Lessons are also segregated based on their parent course's status. For published courses, lessons are at `/courses/{courseId}/lessons/{lessonId}`. To enable authorization independence for these lessons, each lesson document denormalizes the `courseInstructorId` and `courseStatus` from its parent course. This means rules for lessons can determine if `request.auth.uid` is the instructor or if the lesson belongs to a published course without needing to `get()` the parent course document. For draft courses, lessons are nested under `/users/{instructorId}/draftCourses/{courseId}/lessons/{lessonId}`, inherently securing them via path-based ownership.\n4.  **Student Enrollments and Progress:** Enrollments are designed using path-based ownership at `/users/{studentId}/enrollments/{courseId}`, where the `studentId` in the path matches `request.auth.uid`. Critically, the `courseId` is used as the document ID for the enrollment, allowing for efficient `exists(/users/$(request.auth.uid)/enrollments/$(courseId))` checks to verify if a student is enrolled in a particular course (e.g., when accessing lesson content). The `studentId` is also denormalized within the enrollment document. For instructors to list enrollments for their courses, `courseInstructorId` is denormalized into the `Enrollment` document, enabling `list` queries without `get()` calls on course documents. Lesson completions are similarly nested under enrollments, `/users/{studentId}/enrollments/{courseId}/lessonCompletions/{lessonCompletionId}`, and denormalize `studentId` to ensure ownership checks are performed without needing to traverse up the document tree with `get()` operations.\n\n**QAPs (Query as a Privilege) Support:**\n*   **Public Course Discovery:** The `/courses/{courseId}` collection allows for public `list` queries as all documents within it are 'Published' or 'Archived' and thus publicly readable. This naturally supports course discovery.\n*   **Instructor's Drafts:** The `/users/{instructorId}/draftCourses/{courseId}` collection, being user-specific, allows an instructor to `list` their own draft courses by querying the path corresponding to their `uid`.\n*   **Student Enrollments:** The `/users/{studentId}/enrollments/{courseId}` collection allows a student to `list` their own enrollments efficiently. Additionally, the denormalized `courseInstructorId` field within `Enrollment` documents allows instructors to query and `list` all enrollments for their specific courses across all students without complex rule filters or `get()` calls on the parent Course documents.\n*   **Categories:** The `/categories/{categoryId}` collection is publicly readable, supporting `list` operations for all users.\n\nBy implementing these structural segregations and denormalization strategies, the security rules become simpler (e.g., `request.auth.uid == resource.data.ownerId`), more robust, and easier to debug, as each document carries its necessary authorization context."
+    "reasoning": "The Firestore data structure for EduSpark prioritizes secure, scalable, and debuggable authorization rules by strictly adhering to the core design principles. The foundational strategy is **Authorization Independence via Denormalization** to eliminate `get()` calls in security rules, ensuring atomic operations and simplifying rule logic.\n\n**Authorization Independence:**\n1.  **User Profiles and Roles:** User profiles (`/userProfiles/{userId}`) are directly path-based, meaning `request.auth.uid` directly identifies the owner for write operations. Global roles, such as administrators, are managed via an existence-based collection (`/roles_admins/{userId}`). This allows rules to check `exists(/roles_admins/$(request.auth.uid))` without needing to read any data from `UserProfile` documents themselves, thus maintaining authorization independence.\n2.  **Course Ownership & Status Segregation:** To handle different access patterns for course states, courses are segregated structurally. 'Published' or 'Archived' courses reside in `/courses/{courseId}`, where the `instructorId` is denormalized directly into the course document. This enables rules to verify `request.auth.uid == resource.data.instructorId` without `get()` calls. 'Draft' courses are kept private within `/users/{instructorId}/draftCourses/{courseId}`, leveraging path-based ownership (`request.auth.uid == instructorId`) and also denormalizing `instructorId` within the document for redundancy and clarity. This structural segregation simplifies rules by ensuring all documents in a given collection path share a homogeneous security posture.\n3.  **Course Content (Chapters & Lectures):** Course content, defined as chapters and lectures, is embedded as an array of objects directly within the `Course` document. This simplifies the data model for the initial creation and editing phase, especially for draft courses, as it allows the entire course structure to be managed within a single document. This avoids the complexity of managing nested subcollections during the draft phase and simplifies the security rules, as access to chapters and lectures is inherently controlled by the rules on the parent `Course` document.\n4.  **Student Enrollments and Progress:** Enrollments are designed using path-based ownership at `/users/{studentId}/enrollments/{courseId}`, where the `studentId` in the path matches `request.auth.uid`. Critically, the `courseId` is used as the document ID for the enrollment, allowing for efficient `exists(/users/$(request.auth.uid)/enrollments/$(courseId))` checks to verify if a student is enrolled in a particular course. When creating an enrollment, a rule will verify that the student's class matches the `targetClass` of the course, which requires a `get()` call but is acceptable on a write operation. Once enrolled, read access to the course content is granted based on this enrollment, avoiding repeated `get()` calls on read operations.\n\n**QAPs (Query as a Privilege) Support:**\n*   **Public Course Discovery:** The `/courses/{courseId}` collection allows for public `list` queries. Access to individual courses is then controlled at the read (`get`) level, ensuring students can only access courses for their class.\n*   **Instructor's Drafts:** The `/users/{instructorId}/draftCourses/{courseId}` collection allows an instructor to `list` their own draft courses by querying the path corresponding to their `uid`.\n*   **Student Enrollments:** The `/users/{studentId}/enrollments/{courseId}` collection allows a student to `list` their own enrollments efficiently. The denormalized `courseInstructorId` field within `Enrollment` documents allows instructors to query and `list` all enrollments for their specific courses across all students.\n*   **Categories:** The `/categories/{categoryId}` collection is publicly readable, supporting `list` operations for all users.\n\nBy embedding chapters/lectures and controlling enrollment, the security rules remain simple and performant for read operations, while ensuring students can only access content appropriate for their class."
   }
 }
-    

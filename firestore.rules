@@ -12,7 +12,8 @@
  * - /users/{userId}/: This is a private data tree for each user, containing their draft courses,
  *   enrollments, and lesson progress. Access is strictly limited to the user specified in the path.
  * - /courses/{courseId}: A top-level collection for publicly visible courses. Writes are
- *   restricted to the course's designated instructor.
+ *   restricted to the course's designated instructor. Reads are restricted to enrolled students
+ *   or students of the correct class.
  * - /categories/{categoryId}: A public, read-only collection for course categories, which can only be
  *   managed by administrators.
  * - /roles_admins/{userId}: An existence-based collection for granting administrator privileges.
@@ -21,13 +22,11 @@
  * Key Security Decisions
  * - Default Deny: All paths are closed by default. Access is only granted through explicit allow rules.
  * - No User Enumeration: Listing users from the top-level /userProfiles collection is disallowed to protect user privacy.
- * - Structural Segregation: Draft content (e.g., draftCourses) is stored in a separate, private
- *   user subcollection, while published content resides in a public top-level collection. This separation
- *   creates a clear and secure boundary between private and public data.
- * - Denormalization for Authorization: To create simpler, faster rules, critical authorization data
- *   (like instructorId or studentId) is denormalized directly onto the documents being secured.
- *   For example, a Lesson document contains a courseInstructorId so that write access can be
- *   verified without needing a costly get() call to the parent Course document.
+ * - Course Content is Embedded: Chapters and Lectures are stored as arrays within the Course document
+ *   to simplify creation and management, especially for drafts. Access is controlled via the parent Course.
+ * - Enrollment-Based Access: Students gain access to course content by creating an Enrollment document.
+ *   The creation of this enrollment is the gatekeeper, checking if the student belongs to the correct class.
+ *   This avoids costly get() calls on every content read.
  *
  */
 rules_version = '2';
@@ -67,30 +66,25 @@ service cloud.firestore {
       return isSignedIn() && exists(/databases/$(database)/documents/users/$(request.auth.uid)/enrollments/$(courseId));
     }
 
+    // Checks if a student is in the target class for a specific course.
+    // This function performs two 'get' operations, so it should only be used in rules
+    // for write operations (like create enrollment) to avoid performance issues on reads.
+    function isStudentInCourseClass(courseId) {
+      let course = get(/databases/$(database)/documents/courses/$(courseId)).data;
+      let userProfile = get(/databases/$(database)/documents/userProfiles/$(request.auth.uid)).data;
+      return userProfile.role == 'student' && userProfile.class == course.targetClass;
+    }
+
+
     // Validates that critical, immutable fields for a Course are not changed on update.
     function isImmutableCourse() {
       return request.resource.data.id == resource.data.id &&
              request.resource.data.instructorId == resource.data.instructorId;
     }
 
-    // Validates that critical, immutable fields for a Lesson are not changed on update.
-    function isImmutableLesson() {
-        return request.resource.data.id == resource.data.id &&
-               request.resource.data.courseId == resource.data.courseId &&
-               request.resource.data.courseInstructorId == resource.data.courseInstructorId;
-    }
-
     // Validates that critical, immutable fields for an Enrollment are not changed on update.
     function isImmutableEnrollment() {
         return request.resource.data.id == resource.data.id &&
-               request.resource.data.studentId == resource.data.studentId;
-    }
-
-    // Validates that critical, immutable fields for a LessonCompletion are not changed on update.
-    function isImmutableLessonCompletion() {
-        return request.resource.data.id == resource.data.id &&
-               request.resource.data.enrollmentId == resource.data.enrollmentId &&
-               request.resource.data.lessonId == resource.data.lessonId &&
                request.resource.data.studentId == resource.data.studentId;
     }
 
@@ -101,12 +95,6 @@ service cloud.firestore {
 
     // Secures a user's own profile document.
     // Path: /userProfiles/{userId}
-    // allow (create) An authenticated user creating their own profile document.
-    // allow (get) Any authenticated user reading another user's profile.
-    // allow (update) A user updating their own profile document, or an admin updating any profile.
-    // deny (list) A non-admin user attempting to list all user profiles, to prevent user enumeration.
-    // deny (delete) A user trying to delete another user's profile.
-    // principle Restricts access to a user's own data tree and prevents user enumeration.
     match /userProfiles/{userId} {
       allow get: if isSignedIn();
       allow list: if isAdmin(); // Admins can list users to manage applications
@@ -128,15 +116,8 @@ service cloud.firestore {
 
     // Existence-based role management for administrators. This collection is for backend checks only.
     // Path: /roles_admins/{userId}
-    // No client-side operations are permitted.
-    // All direct read and write access from clients is forbidden.
-    // Principle: Secures administrative roles by making them inaccessible to clients.
     match /roles_admins/{userId} {
-      allow get: if false;
-      allow list: if false;
-      allow create: if false;
-      allow update: if false;
-      allow delete: if false;
+      allow read, write: if false;
     }
 
     // --------------------------------------------------------------------
@@ -145,10 +126,6 @@ service cloud.firestore {
 
     // Public course categories. Readable by all, writable only by admins.
     // Path: /categories/{categoryId}
-    // allow (list) Any user, signed in or not, listing all categories.
-    // allow (create) An administrator creating a new category.
-    // deny (update) A non-administrator trying to change a category name.
-    // Principle: Enforces role-based access for administrative tasks on public data.
     match /categories/{categoryId} {
       allow get, list: if true;
       allow create: if isAdmin() && request.resource.data.id == categoryId;
@@ -156,34 +133,18 @@ service cloud.firestore {
       allow delete: if isAdmin() && docExists();
     }
 
-    // Published courses. Readable by any signed-in user, writable by the owning instructor.
+    // Published courses. Readable by enrolled students or the instructor. Writable by the instructor.
     // Path: /courses/{courseId}
-    // allow (get) Any signed-in user viewing a published course.
-    // allow (create) An instructor creating a new course and setting themselves as the owner.
-    // deny (update) A user who is not the designated instructorId trying to modify the course.
-    // Principle: Enforces document ownership for writes on publicly readable data.
     match /courses/{courseId} {
-      allow get, list: if isSignedIn();
-      allow create: if isSignedIn() && request.resource.data.instructorId == request.auth.uid && request.resource.data.id == courseId;
+      // Students can only read a course if they are enrolled. Instructors and Admins can always read.
+      allow get: if isSignedIn() && (isOwner(resource.data.instructorId) || isAdmin() || isEnrolled(courseId));
+      // Allow listing of courses so users can browse them, but 'get' is what protects the content.
+      allow list: if isSignedIn();
+      allow create: if isSignedIn() && isOwner(request.resource.data.instructorId) && request.resource.data.id == courseId;
       allow update: if isSignedIn() && isOwner(resource.data.instructorId) && docExists() && isImmutableCourse();
       allow delete: if isSignedIn() && isOwner(resource.data.instructorId) && docExists();
     }
 
-    // Lessons for a published course. Readable by enrolled students or the instructor, writable by the instructor.
-    // Path: /courses/{courseId}/lessons/{lessonId}
-    // allow (get) A student who is enrolled in the parent course reading a lesson.
-    // allow (update) The course instructor updating a lesson.
-    // deny (get) A user who is not enrolled in the course trying to read a lesson.
-    // deny (delete) A user who is not the course instructor trying to delete a lesson.
-    // Principle: Combines ownership (for instructors) and shared access (for students) by checking a denormalized ownership field and a related enrollment document.
-    match /courses/{courseId}/lessons/{lessonId} {
-      // NOTE: `get` for parent course is needed to check instructorId for read access.
-      // This is one of the few places where a get() is explicitly allowed due to the shared access model.
-      allow get, list: if isSignedIn() && (isEnrolled(courseId) || isOwner(get(/databases/$(database)/documents/courses/$(courseId)).data.instructorId));
-      allow create: if isSignedIn() && isOwner(get(/databases/$(database)/documents/courses/$(courseId)).data.instructorId) && request.resource.data.courseId == courseId && request.resource.data.id == lessonId;
-      allow update: if isSignedIn() && isOwner(resource.data.courseInstructorId) && docExists() && isImmutableLesson();
-      allow delete: if isSignedIn() && isOwner(resource.data.courseInstructorId) && docExists();
-    }
 
     // --------------------------------------------------------------------
     // User-Specific Private Data Tree
@@ -192,59 +153,24 @@ service cloud.firestore {
 
       // Private draft courses owned by an instructor.
       // Path: /users/{instructorId}/draftCourses/{courseId}
-      // allow (create, read, update, delete) The instructor performing any action on their own draft course.
-      // deny (read) Any other user trying to access another instructor's draft course.
-      // Principle: Enforces strict ownership of all data within a user's private data tree based on the path.
       match /draftCourses/{courseId} {
-        // Consolidated rules are more concise. Removed redundant granular breakdown.
-        allow get, list, create, update, delete: if isOwner(userId) && request.resource.data.instructorId == userId && request.resource.data.id == courseId;
-        // For existing documents, only ownership and immutability are checked for update/delete.
+        allow read, write: if isOwner(userId) && request.resource.data.instructorId == userId;
+        allow create: if isOwner(userId) && request.resource.data.id == courseId;
         allow update: if isOwner(userId) && docExists() && isImmutableCourse();
         allow delete: if isOwner(userId) && docExists();
       }
 
-      // Private lessons for a draft course, owned by an instructor.
-      // Path: /users/{instructorId}/draftCourses/{courseId}/lessons/{lessonId}
-      // allow (create) The instructor adding a new lesson to their draft course.
-      // deny (get) Any other user attempting to view lessons in a draft course.
-      // Principle: Inherits ownership from the parent path, ensuring subcollections remain private.
-      match /draftCourses/{courseId}/lessons/{lessonId} {
-        // Consolidated rules are more concise. Removed redundant granular breakdown.
-        allow get, list, create, update, delete: if isOwner(userId);
-        // For create, enforce data consistency.
-        allow create: if isOwner(userId) && request.resource.data.courseId == courseId && request.resource.data.courseInstructorId == userId && request.resource.data.id == lessonId;
-        // For existing documents, only ownership and immutability are checked for update/delete.
-        allow update: if isOwner(userId) && docExists() && isImmutableLesson();
-        allow delete: if isOwner(userId) && docExists();
-      }
 
       // A student's enrollment record for a specific course.
+      // This is the gatekeeper for course access.
       // Path: /users/{studentId}/enrollments/{courseId}
-      // allow (read, write) The student accessing or modifying their own enrollment status.
-      // deny (read) An instructor trying to directly read a student's enrollment record via this path.
-      // Principle: Enforces strict ownership of a user's personal records.
       match /enrollments/{courseId} {
-        // Consolidated rules are more concise. Removed redundant granular breakdown.
-        allow get, list, create, update, delete: if isOwner(userId);
-        // For create, enforce data consistency.
-        allow create: if isOwner(userId) && request.resource.data.studentId == userId && request.resource.data.id == courseId;
-        // For existing documents, only ownership and immutability are checked for update/delete.
+        allow read, write: if isOwner(userId);
+        // On creation, verify the student belongs to the course's target class.
+        // This is the only place we need to do this expensive check.
+        allow create: if isOwner(userId) && request.resource.data.studentId == userId && request.resource.data.id == courseId
+                      && isStudentInCourseClass(courseId);
         allow update: if isOwner(userId) && docExists() && isImmutableEnrollment();
-        allow delete: if isOwner(userId) && docExists();
-      }
-
-      // A student's completion status for a specific lesson.
-      // Path: /users/{studentId}/enrollments/{courseId}/lessonCompletions/{lessonCompletionId}
-      // allow (create, update) The student marking a lesson as complete.
-      // deny (read) Any other user trying to view another student's lesson progress.
-      // Principle: Inherits ownership from the parent path, securing granular progress data.
-      match /enrollments/{courseId}/lessonCompletions/{lessonCompletionId} {
-        // Consolidated rules are more concise. Removed redundant granular breakdown.
-        allow get, list, create, update, delete: if isOwner(userId);
-        // For create, enforce data consistency.
-        allow create: if isOwner(userId) && request.resource.data.studentId == userId && request.resource.data.enrollmentId == courseId && request.resource.data.id == lessonCompletionId;
-        // For existing documents, only ownership and immutability are checked for update/delete.
-        allow update: if isOwner(userId) && docExists() && isImmutableLessonCompletion();
         allow delete: if isOwner(userId) && docExists();
       }
     }

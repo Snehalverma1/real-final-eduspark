@@ -11,6 +11,8 @@ type CourseCardProps = {
 };
 
 export function CourseCard({ course }: CourseCardProps) {
+  const totalLectures = course.chapters.reduce((acc, chapter) => acc + chapter.lectures.length, 0);
+
   return (
     <Link href={`/courses/${course.id}`} className="group block">
       <Card className="h-full flex flex-col overflow-hidden transition-all duration-300 hover:shadow-xl hover:-translate-y-1">
@@ -41,7 +43,7 @@ export function CourseCard({ course }: CourseCardProps) {
         <CardFooter className="p-4 pt-0 flex justify-between items-center">
             <div className="flex items-center text-sm text-muted-foreground">
                 <BookCopy className="w-4 h-4 mr-1.5" />
-                {course.lessons.length} lessons
+                {totalLectures} lectures
             </div>
             <Button variant="secondary" size="sm" className="opacity-0 group-hover:opacity-100 transition-opacity rounded-full">
                 View Course
