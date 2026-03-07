@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { BookOpen, LogIn, UserPlus, LogOut, User, PlusCircle } from "lucide-react";
+import { BookOpen, LogIn, UserPlus, LogOut, User, PlusCircle, Shield } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -12,13 +12,22 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback, AvatarImage } from "./ui/avatar";
-import { useUser, useAuth } from "@/firebase/provider";
+import { useUser, useAuth, useFirestore, useDoc, useMemoFirebase } from "@/firebase";
 import { signOut } from "firebase/auth";
 import { Skeleton } from "./ui/skeleton";
+import { doc } from "firebase/firestore";
 
 export default function Header() {
   const { user, isUserLoading } = useUser();
   const auth = useAuth();
+  const firestore = useFirestore();
+
+  const userProfileRef = useMemoFirebase(() => {
+    if (!firestore || !user) return null;
+    return doc(firestore, 'userProfiles', user.uid);
+  }, [firestore, user]);
+
+  const { data: userProfile, isLoading: isProfileLoading } = useDoc(userProfileRef);
 
   const handleLogout = () => {
     if (auth) {
@@ -26,7 +35,9 @@ export default function Header() {
     }
   };
 
+  const isLoading = isUserLoading || isProfileLoading;
   const isLoggedIn = !isUserLoading && user;
+  const isAdmin = userProfile?.role === 'admin';
 
   return (
     <header className="sticky top-0 z-50 w-full border-b border-border/40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
@@ -50,7 +61,7 @@ export default function Header() {
           </Link>
         </nav>
         <div className="flex flex-1 items-center justify-end space-x-2">
-          {isUserLoading ? (
+          {isLoading ? (
             <Skeleton className="h-8 w-8 rounded-full" />
           ) : isLoggedIn ? (
             <>
@@ -79,6 +90,14 @@ export default function Header() {
                     </div>
                   </DropdownMenuLabel>
                   <DropdownMenuSeparator />
+                  {isAdmin && (
+                     <DropdownMenuItem asChild>
+                       <Link href="/admin">
+                         <Shield className="mr-2 h-4 w-4" />
+                         <span>Admin Dashboard</span>
+                       </Link>
+                     </DropdownMenuItem>
+                  )}
                   <DropdownMenuItem>
                     <User className="mr-2 h-4 w-4" />
                     <span>My Profile</span>
