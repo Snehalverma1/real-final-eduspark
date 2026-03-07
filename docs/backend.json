@@ -206,6 +206,15 @@
           "type": "string",
           "description": "Reference to the UserProfile of the instructor who created this course. (Relationship: UserProfile 1:N Course)"
         },
+        "instructorName": {
+          "type": "string",
+          "description": "Denormalized name of the instructor for display purposes."
+        },
+        "instructorAvatarUrl": {
+          "type": "string",
+          "description": "Denormalized avatar URL of the instructor for display purposes.",
+          "format": "uri"
+        },
         "thumbnailUrl": {
           "type": "string",
           "description": "URL to the thumbnail image for the course.",

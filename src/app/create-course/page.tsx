@@ -83,15 +83,17 @@ export default function CreateCoursePage() {
     
     setIsSaving(true);
 
-    const courseId = doc(collection(firestore, 'users', user.uid, 'draftCourses')).id;
-    const courseRef = doc(firestore, `users/${user.uid}/draftCourses`, courseId);
+    const courseId = doc(collection(firestore, 'courses')).id;
+    const courseRef = doc(firestore, `courses`, courseId);
 
     const finalCourseData = {
       id: courseId,
       title: data.title,
       description: data.description,
       instructorId: user.uid,
-      status: 'Draft' as const,
+      instructorName: user.displayName || 'Instructor',
+      instructorAvatarUrl: user.photoURL || `https://picsum.photos/seed/${user.uid}/40/40`,
+      status: 'Published' as const,
       targetClass: data.targetClass,
       difficultyLevel: data.difficultyLevel,
       createdAt: new Date().toISOString(),
@@ -115,8 +117,8 @@ export default function CreateCoursePage() {
     setDoc(courseRef, finalCourseData)
       .then(() => {
         toast({
-          title: "Course Draft Saved!",
-          description: "Your new course has been saved as a draft. You can manage it from 'My Courses'.",
+          title: "Course Published!",
+          description: "Your new course is now live and visible to students.",
         });
         router.push('/');
       })
@@ -131,7 +133,7 @@ export default function CreateCoursePage() {
         toast({
           variant: "destructive",
           title: "Uh oh! Something went wrong.",
-          description: "Could not save the course. Please check your permissions and try again.",
+          description: "Could not publish the course. Please check your permissions and try again.",
         });
       })
       .finally(() => {
@@ -267,7 +269,7 @@ export default function CreateCoursePage() {
 
           <Button type="submit" size="lg" className="w-full" disabled={isBusy}>
             {isBusy && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            Save as Draft
+            Publish Course
           </Button>
         </form>
       </Form>
