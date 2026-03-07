@@ -25,6 +25,7 @@ import { FirebaseError } from 'firebase/app';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Textarea } from '@/components/ui/textarea';
 import { doc, setDoc } from 'firebase/firestore';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 
 const formSchema = z.object({
@@ -34,6 +35,8 @@ const formSchema = z.object({
   role: z.enum(['student', 'class-teacher', 'subject-teacher'], {
     required_error: 'You need to select a role.',
   }),
+  class: z.string().optional(),
+  section: z.string().optional(),
   subjects: z.string().optional(),
   experience: z.string().optional(),
 })
@@ -51,6 +54,23 @@ const formSchema = z.object({
         code: z.ZodIssueCode.custom,
         path: ['experience'],
         message: 'Please describe your experience (at least 20 characters).',
+      });
+    }
+  }
+
+  if (data.role === 'student' || data.role === 'class-teacher') {
+    if (!data.class) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['class'],
+        message: 'Please select a class.',
+      });
+    }
+    if (!data.section) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['section'],
+        message: 'Please select a section.',
       });
     }
   }
@@ -111,6 +131,11 @@ export default function SignupPage() {
       if (values.role === 'subject-teacher') {
           userProfileData.subjects = values.subjects?.split(',').map(s => s.trim());
           userProfileData.experience = values.experience;
+      }
+      
+      if (values.role === 'student' || values.role === 'class-teacher') {
+        userProfileData.class = values.class;
+        userProfileData.section = values.section;
       }
 
       await setDoc(doc(firestore, 'userProfiles', userCredential.user.uid), userProfileData);
@@ -262,6 +287,55 @@ export default function SignupPage() {
                     )}
                   />
 
+                  {(role === 'student' || role === 'class-teacher') && (
+                    <div className="grid grid-cols-2 gap-4">
+                       <FormField
+                          control={form.control}
+                          name="class"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Class</FormLabel>
+                              <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                <FormControl>
+                                  <SelectTrigger>
+                                    <SelectValue placeholder="Select class" />
+                                  </SelectTrigger>
+                                </FormControl>
+                                <SelectContent>
+                                  {[...Array(12)].map((_, i) => (
+                                    <SelectItem key={i + 1} value={`${i + 1}`}>{i + 1}</SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                         <FormField
+                          control={form.control}
+                          name="section"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Section</FormLabel>
+                              <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                <FormControl>
+                                  <SelectTrigger>
+                                    <SelectValue placeholder="Select section" />
+                                  </SelectTrigger>
+                                </FormControl>
+                                <SelectContent>
+                                  {['A', 'B', 'C', 'D'].map((sec) => (
+                                    <SelectItem key={sec} value={sec}>{sec}</SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                    </div>
+                  )}
+
                   {role === 'subject-teacher' && (
                     <>
                       <FormField
@@ -316,3 +390,5 @@ export default function SignupPage() {
     </div>
   );
 }
+
+    
