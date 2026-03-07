@@ -3,22 +3,47 @@
 import { CourseCard } from "@/components/course-card";
 import { Input } from "@/components/ui/input";
 import { Search, Loader2 } from "lucide-react";
-import { useFirestore, useCollection, useMemoFirebase } from "@/firebase";
-import { collection, query, where } from "firebase/firestore";
+import { useFirestore, useCollection, useUser, useDoc, useMemoFirebase } from "@/firebase";
+import { collection, query, where, doc } from "firebase/firestore";
 import type { Course as CourseType } from "@/lib/data";
 
 export default function Home() {
   const firestore = useFirestore();
+  const { user, isUserLoading: isUserAuthLoading } = useUser();
+
+  const userProfileRef = useMemoFirebase(() => {
+    if (!firestore || !user) return null;
+    return doc(firestore, 'userProfiles', user.uid);
+  }, [firestore, user]);
+  
+  const { data: userProfile, isLoading: isProfileLoading } = useDoc(userProfileRef);
 
   const coursesQuery = useMemoFirebase(() => {
     if (!firestore) return null;
+    
+    // Don't construct query until we have user profile or know they are logged out.
+    if (isUserAuthLoading) return null;
+    if (user && isProfileLoading) return null;
+
+    // If user is a student, filter by their class
+    if (userProfile && userProfile.role === 'student' && userProfile.class) {
+      return query(
+        collection(firestore, 'courses'), 
+        where('status', '==', 'Published'),
+        where('targetClass', '==', userProfile.class)
+      );
+    }
+
+    // For non-students (teachers, admins) or anonymous users, show all published courses
     return query(
         collection(firestore, 'courses'), 
         where('status', '==', 'Published')
     );
-  }, [firestore]);
+  }, [firestore, user, userProfile, isUserAuthLoading, isProfileLoading]);
 
-  const { data: courses, isLoading } = useCollection(coursesQuery);
+  const { data: courses, isLoading: areCoursesLoading } = useCollection(coursesQuery);
+  
+  const isLoading = isUserAuthLoading || (user && isProfileLoading) || (!coursesQuery && !!user) || (!!coursesQuery && areCoursesLoading);
 
   const formattedCourses: CourseType[] = (courses || []).map((course: any) => ({
     id: course.id,
@@ -62,7 +87,7 @@ export default function Home() {
             ))}
           </div>
         ) : (
-          <p className="text-center text-muted-foreground">No courses have been published yet.</p>
+          <p className="text-center text-muted-foreground">{ userProfile?.role === 'student' ? "No courses available for your class yet." : "No courses have been published yet." }</p>
         )}
       </section>
     </div>

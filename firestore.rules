@@ -66,6 +66,13 @@ service cloud.firestore {
       return isSignedIn() && exists(/databases/$(database)/documents/users/$(request.auth.uid)/enrollments/$(courseId));
     }
 
+    // Returns true if the user is a student and their class matches the course's target class.
+    // This performs a 'get' so it should only be used in rules for single-document reads/writes.
+    function studentCanAccessCourse(courseData) {
+      let userProfile = get(/databases/$(database)/documents/userProfiles/$(request.auth.uid)).data;
+      return userProfile.role == 'student' && userProfile.class == courseData.targetClass;
+    }
+
     // Checks if a student is in the target class for a specific course.
     // This function performs two 'get' operations, so it should only be used in rules
     // for write operations (like create enrollment) to avoid performance issues on reads.
@@ -133,11 +140,12 @@ service cloud.firestore {
       allow delete: if isAdmin() && docExists();
     }
 
-    // Published courses. Readable by enrolled students or the instructor. Writable by the instructor.
+    // Published courses. Readable by enrolled students or the instructor.
     // Path: /courses/{courseId}
     match /courses/{courseId} {
-      // Students can only read a course if they are enrolled. Instructors and Admins can always read.
-      allow get: if isSignedIn() && (isOwner(resource.data.instructorId) || isAdmin() || isEnrolled(courseId));
+      // Students can only read a course if they are enrolled OR if the course is for their class.
+      // Instructors and Admins can always read.
+      allow get: if isSignedIn() && (isOwner(resource.data.instructorId) || isAdmin() || isEnrolled(courseId) || studentCanAccessCourse(resource.data));
       // Allow listing of courses so users can browse them, but 'get' is what protects the content.
       allow list: if isSignedIn();
       allow create: if isSignedIn() && isOwner(request.resource.data.instructorId) && request.resource.data.id == courseId;
