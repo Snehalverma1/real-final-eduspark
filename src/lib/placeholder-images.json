@@ -1,3 +1,40 @@
 {
-  "placeholderImages": []
+  "placeholderImages": [
+    {
+      "id": "course-1",
+      "description": "A person coding on a laptop.",
+      "imageUrl": "https://picsum.photos/seed/course1/600/400",
+      "imageHint": "programming abstract"
+    },
+    {
+      "id": "course-2",
+      "description": "A person designing a website layout.",
+      "imageUrl": "https://picsum.photos/seed/course2/600/400",
+      "imageHint": "web design"
+    },
+    {
+      "id": "course-3",
+      "description": "Abstract data visualization.",
+      "imageUrl": "https://picsum.photos/seed/course3/600/400",
+      "imageHint": "data science"
+    },
+    {
+      "id": "course-4",
+      "description": "A person giving a presentation about marketing.",
+      "imageUrl": "https://picsum.photos/seed/course4/600/400",
+      "imageHint": "digital marketing"
+    },
+    {
+      "id": "course-5",
+      "description": "A person writing in a notebook.",
+      "imageUrl": "https://picsum.photos/seed/course5/600/400",
+      "imageHint": "creative writing"
+    },
+    {
+      "id": "course-6",
+      "description": "A close-up of a camera.",
+      "imageUrl": "https://picsum.photos/seed/course6/600/400",
+      "imageHint": "photography basics"
+    }
+  ]
 }
