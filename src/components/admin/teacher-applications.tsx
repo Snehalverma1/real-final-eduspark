@@ -1,6 +1,6 @@
 'use client';
 
-import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
+import { useFirestore, useCollection, useMemoFirebase, useUser, useDoc } from '@/firebase';
 import { collection, query, where, doc, updateDoc } from 'firebase/firestore';
 import {
   Table,
@@ -19,36 +19,29 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 export default function TeacherApplications() {
   const firestore = useFirestore();
   const { toast } = useToast();
+  const { user } = useUser();
+
+  const userProfileRef = useMemoFirebase(() => {
+    if (!firestore || !user) return null;
+    return doc(firestore, 'userProfiles', user.uid);
+  }, [firestore, user]);
+
+  const { data: userProfile, isLoading: isProfileLoading } = useDoc(userProfileRef);
+
+  const isAdmin = userProfile?.role === 'admin';
 
   const applicationsQuery = useMemoFirebase(() => {
-    if (!firestore) return null;
+    if (!firestore || !isAdmin) return null; // Only query if user is an admin
     return query(
         collection(firestore, 'userProfiles'), 
         where('applicationStatus', '==', 'pending'),
         where('role', 'in', ['subject-teacher', 'class-teacher'])
     );
-  }, [firestore]);
+  }, [firestore, isAdmin]);
 
-  const { data: applications, isLoading } = useCollection(applicationsQuery);
-
-  const handleUpdateStatus = async (userId: string, status: 'approved' | 'rejected') => {
-    if (!firestore) return;
-    const userDocRef = doc(firestore, 'userProfiles', userId);
-    try {
-      await updateDoc(userDocRef, { applicationStatus: status });
-      toast({
-        title: 'Application Updated',
-        description: `The teacher application has been ${status}.`,
-      });
-    } catch (error) {
-      console.error("Error updating application status: ", error);
-      toast({
-        variant: 'destructive',
-        title: 'Update Failed',
-        description: 'Could not update the application status.',
-      });
-    }
-  };
+  const { data: applications, isLoading: areApplicationsLoading } = useCollection(applicationsQuery);
+  
+  const isLoading = isProfileLoading || areApplicationsLoading;
 
   if (isLoading) {
     return (
@@ -66,7 +59,7 @@ export default function TeacherApplications() {
       </CardHeader>
       <CardContent>
          {!applications || applications.length === 0 ? (
-            <p>No pending applications.</p>
+            <p className="text-muted-foreground">No pending applications.</p>
          ) : (
             <Table>
             <TableHeader>
