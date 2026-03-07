@@ -15,11 +15,12 @@ type CoursePageProps = {
 };
 
 export default function CoursePage({ params }: CoursePageProps) {
+  const { courseId } = params;
   const firestore = useFirestore();
   const courseRef = useMemoFirebase(() => {
     if (!firestore) return null;
-    return doc(firestore, 'courses', params.courseId);
-  }, [firestore, params.courseId]);
+    return doc(firestore, 'courses', courseId);
+  }, [firestore, courseId]);
 
   const { data: courseData, isLoading } = useDoc(courseRef);
 
