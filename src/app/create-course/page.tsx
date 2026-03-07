@@ -15,9 +15,13 @@ import {
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { PlusCircle, Trash2, Book, Film } from "lucide-react";
+import { PlusCircle, Trash2, Book, Film, Loader2 } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
+import { useUser, useFirestore } from "@/firebase";
+import { doc, collection, setDoc } from 'firebase/firestore';
+import { useToast } from "@/hooks/use-toast";
+import { useRouter } from "next/navigation";
 
 const lectureSchema = z.object({
   lectureNumber: z.coerce.number().min(1, "Lecture number is required."),
@@ -36,12 +40,18 @@ const courseSchema = z.object({
   title: z.string().min(5, "Title must be at least 5 characters."),
   description: z.string().min(20, "Description must be at least 20 characters."),
   targetClass: z.string({ required_error: "Please select a target class."}),
+  difficultyLevel: z.enum(['Beginner', 'Intermediate', 'Advanced'], { required_error: "Please select a difficulty level." }),
   chapters: z.array(chapterSchema).min(1, "At least one chapter is required."),
 });
 
 type CourseFormValues = z.infer<typeof courseSchema>;
 
 export default function CreateCoursePage() {
+  const { user, isUserLoading } = useUser();
+  const firestore = useFirestore();
+  const router = useRouter();
+  const { toast } = useToast();
+
   const form = useForm<CourseFormValues>({
     resolver: zodResolver(courseSchema),
     defaultValues: {
@@ -55,10 +65,86 @@ export default function CreateCoursePage() {
     control: form.control,
     name: "chapters",
   });
+  
+  const { isSubmitting } = form.formState;
 
-  function onSubmit(data: CourseFormValues) {
-    console.log(data);
-    alert("Course created successfully! Check the console for the data.");
+  async function onSubmit(data: CourseFormValues) {
+    if (!user || !firestore) {
+      toast({
+        variant: "destructive",
+        title: "Authentication Error",
+        description: "You must be logged in to create a course.",
+      });
+      return;
+    }
+
+    try {
+      // Path for draft courses: /users/{instructorId}/draftCourses/{courseId}
+      const courseId = doc(collection(firestore, 'users', user.uid, 'draftCourses')).id;
+
+      const finalCourseData = {
+        id: courseId,
+        title: data.title,
+        description: data.description,
+        instructorId: user.uid,
+        status: 'Draft' as const,
+        targetClass: data.targetClass,
+        difficultyLevel: data.difficultyLevel,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        thumbnailUrl: `https://picsum.photos/seed/${courseId}/600/400`,
+        chapters: data.chapters.map((chapter, cIndex) => ({
+          id: `ch_${cIndex + 1}`,
+          title: chapter.title,
+          order: cIndex + 1,
+          lectures: chapter.lectures.map((lecture, lIndex) => {
+            const { duration, ...rest } = lecture;
+            return {
+              ...rest,
+              id: `lec_${cIndex + 1}_${lIndex + 1}`,
+              durationSeconds: duration * 60,
+            };
+          }),
+        })),
+      };
+
+      await setDoc(doc(firestore, `users/${user.uid}/draftCourses`, courseId), finalCourseData);
+
+      toast({
+        title: "Course Created!",
+        description: "Your new course has been saved as a draft.",
+      });
+
+      router.push('/');
+    } catch (error: any) {
+      console.error("Error creating course: ", error);
+      toast({
+        variant: "destructive",
+        title: "Uh oh! Something went wrong.",
+        description: error.message || "Could not save the course. Please try again.",
+      });
+    }
+  }
+
+  if (isUserLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-[calc(100vh-4rem)]">
+        <Loader2 className="h-8 w-8 animate-spin" />
+      </div>
+    );
+  }
+
+  if (!user) {
+    // Optionally redirect or show a message
+    return (
+       <div className="flex flex-col items-center justify-center min-h-[calc(100vh-4rem)] text-center p-4">
+        <h1 className="text-3xl font-bold font-headline">Access Denied</h1>
+        <p className="text-muted-foreground mt-2">
+          You must be logged in to create a course.
+        </p>
+        <Button onClick={() => router.push('/login')} className="mt-4">Login</Button>
+      </div>
+    )
   }
 
   return (
@@ -101,28 +187,52 @@ export default function CreateCoursePage() {
                   </FormItem>
                 )}
               />
-               <FormField
-                  control={form.control}
-                  name="targetClass"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Target Class</FormLabel>
-                      <Select onValueChange={field.onChange} defaultValue={field.value}>
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select class" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          {[...Array(12)].map((_, i) => (
-                            <SelectItem key={i + 1} value={`${i + 1}`}>{`Class ${i + 1}`}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+              <div className="grid md:grid-cols-2 gap-4">
+                <FormField
+                    control={form.control}
+                    name="targetClass"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Target Class</FormLabel>
+                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select class" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            {[...Array(12)].map((_, i) => (
+                              <SelectItem key={i + 1} value={`${i + 1}`}>{`Class ${i + 1}`}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="difficultyLevel"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Difficulty Level</FormLabel>
+                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select difficulty" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value="Beginner">Beginner</SelectItem>
+                            <SelectItem value="Intermediate">Intermediate</SelectItem>
+                            <SelectItem value="Advanced">Advanced</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+              </div>
             </CardContent>
           </Card>
 
@@ -139,9 +249,13 @@ export default function CreateCoursePage() {
             >
               <PlusCircle className="mr-2 h-4 w-4" /> Add Chapter
             </Button>
+             <FormMessage>{form.formState.errors.chapters?.message}</FormMessage>
           </div>
 
-          <Button type="submit" size="lg" className="w-full">Create Course</Button>
+          <Button type="submit" size="lg" className="w-full" disabled={isSubmitting}>
+            {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            Create Course
+          </Button>
         </form>
       </Form>
     </div>
@@ -279,6 +393,7 @@ function ChapterForm({ chapterIndex, form, removeChapter }: ChapterFormProps) {
                 />
               </div>
             ))}
+            <FormMessage>{form.formState.errors.chapters?.[chapterIndex]?.lectures?.message}</FormMessage>
             <Button
             type="button"
             variant="outline"
