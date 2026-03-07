@@ -1,28 +1,25 @@
 'use client';
 
 import { useMemo } from 'react';
-import { notFound } from "next/navigation";
+import { notFound, useParams } from "next/navigation";
 import CourseView from "@/components/course-view";
 import { useFirestore, useDoc, useMemoFirebase } from "@/firebase";
 import { doc } from "firebase/firestore";
 import { Loader2 } from "lucide-react";
 import type { Course } from "@/lib/data";
 
-type CoursePageProps = {
-  params: {
-    courseId: string;
-  };
-};
+export default function CoursePage() {
+  const params = useParams();
+  const courseId = params?.courseId as string;
 
-export default function CoursePage({ params }: CoursePageProps) {
-  const { courseId } = params;
   const firestore = useFirestore();
+  
   const courseRef = useMemoFirebase(() => {
-    if (!firestore) return null;
+    if (!firestore || !courseId) return null;
     return doc(firestore, 'courses', courseId);
   }, [firestore, courseId]);
 
-  const { data: courseData, isLoading } = useDoc(courseRef);
+  const { data: courseData, isLoading: isCourseLoading } = useDoc(courseRef);
 
   const course: Course | null = useMemo(() => {
     if (!courseData) {
@@ -52,6 +49,9 @@ export default function CoursePage({ params }: CoursePageProps) {
     };
   }, [courseData]);
 
+  // Show loader if params aren't available yet or if the document is loading.
+  const isLoading = !params || isCourseLoading;
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-[calc(100vh-4rem)]">
@@ -60,10 +60,10 @@ export default function CoursePage({ params }: CoursePageProps) {
     );
   }
 
+  // After loading, if there's no course data, trigger a 404.
   if (!course) {
     notFound();
   }
   
-
   return <CourseView course={course} />;
 }
