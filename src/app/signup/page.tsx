@@ -27,36 +27,33 @@ import { Textarea } from '@/components/ui/textarea';
 import { doc, setDoc } from 'firebase/firestore';
 
 
-const roleSchema = z.object({
-  role: z.enum(['student', 'class-teacher', 'subject-teacher'], {
-    required_error: 'You need to select a role.',
-  }),
-});
-
-const baseInfoSchema = z.object({
+const formSchema = z.object({
   fullName: z.string().min(1, 'Full name is required.'),
   email: z.string().email('Please enter a valid email address.'),
   password: z.string().min(6, 'Password must be at least 6 characters.'),
-});
-
-const subjectTeacherSchema = z.object({
-  subjects: z.string().min(3, 'Please list at least one subject.'),
-  experience: z.string().min(20, 'Please describe your experience.'),
-});
-
-// Combined schema for validation
-const formSchema = baseInfoSchema.extend({
-  role: roleSchema.shape.role,
-  subjects: subjectTeacherSchema.shape.subjects.optional(),
-  experience: subjectTeacherSchema.shape.experience.optional(),
-}).refine(data => {
-    if (data.role === 'subject-teacher') {
-        return !!data.subjects && data.subjects.trim().length > 0 && !!data.experience && data.experience.trim().length > 0;
+  role: z.enum(['student', 'class-teacher', 'subject-teacher'], {
+    required_error: 'You need to select a role.',
+  }),
+  subjects: z.string().optional(),
+  experience: z.string().optional(),
+})
+.superRefine((data, ctx) => {
+  if (data.role === 'subject-teacher') {
+    if (!data.subjects || data.subjects.trim().length < 3) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['subjects'],
+        message: 'Please list at least one subject (at least 3 characters).',
+      });
     }
-    return true;
-}, {
-    message: "Subjects and experience are required for subject teachers.",
-    path: ['subjects'],
+    if (!data.experience || data.experience.trim().length < 20) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['experience'],
+        message: 'Please describe your experience (at least 20 characters).',
+      });
+    }
+  }
 });
 
 
