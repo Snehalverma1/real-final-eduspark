@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { useFieldArray, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -51,6 +52,7 @@ export default function CreateCoursePage() {
   const firestore = useFirestore();
   const router = useRouter();
   const { toast } = useToast();
+  const [isSaving, setIsSaving] = useState(false);
 
   const form = useForm<CourseFormValues>({
     resolver: zodResolver(courseSchema),
@@ -67,8 +69,9 @@ export default function CreateCoursePage() {
   });
   
   const { isSubmitting } = form.formState;
+  const isBusy = isSubmitting || isSaving;
 
-  async function onSubmit(data: CourseFormValues) {
+  function onSubmit(data: CourseFormValues) {
     if (!user || !firestore) {
       toast({
         variant: "destructive",
@@ -77,6 +80,8 @@ export default function CreateCoursePage() {
       });
       return;
     }
+    
+    setIsSaving(true);
 
     const courseId = doc(collection(firestore, 'users', user.uid, 'draftCourses')).id;
     const courseRef = doc(firestore, `users/${user.uid}/draftCourses`, courseId);
@@ -107,31 +112,31 @@ export default function CreateCoursePage() {
       })),
     };
 
-    try {
-      await setDoc(courseRef, finalCourseData);
-
-      toast({
-        title: "Course Created!",
-        description: "Your new course has been saved as a draft.",
+    setDoc(courseRef, finalCourseData)
+      .then(() => {
+        toast({
+          title: "Course Created!",
+          description: "Your new course has been saved as a draft.",
+        });
+        router.push('/');
+      })
+      .catch((error: any) => {
+        const permissionError = new FirestorePermissionError({
+            path: courseRef.path,
+            operation: 'create',
+            requestResourceData: finalCourseData,
+        });
+        errorEmitter.emit('permission-error', permissionError);
+          
+        toast({
+          variant: "destructive",
+          title: "Uh oh! Something went wrong.",
+          description: "Could not save the course. Please try again.",
+        });
+      })
+      .finally(() => {
+          setIsSaving(false);
       });
-
-      router.push('/');
-    } catch (error: any) {
-      console.error("Error creating course: ", error);
-      
-      const permissionError = new FirestorePermissionError({
-          path: courseRef.path,
-          operation: 'create',
-          requestResourceData: finalCourseData,
-      });
-      errorEmitter.emit('permission-error', permissionError);
-        
-      toast({
-        variant: "destructive",
-        title: "Uh oh! Something went wrong.",
-        description: "Could not save the course. Please try again.",
-      });
-    }
   }
 
   if (isUserLoading) {
@@ -260,8 +265,8 @@ export default function CreateCoursePage() {
              <FormMessage>{form.formState.errors.chapters?.message}</FormMessage>
           </div>
 
-          <Button type="submit" size="lg" className="w-full" disabled={isSubmitting}>
-            {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+          <Button type="submit" size="lg" className="w-full" disabled={isBusy}>
+            {isBusy && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             Create Course
           </Button>
         </form>

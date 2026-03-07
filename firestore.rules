@@ -154,10 +154,19 @@ service cloud.firestore {
       // Private draft courses owned by an instructor.
       // Path: /users/{instructorId}/draftCourses/{courseId}
       match /draftCourses/{courseId} {
-        allow read, write: if isOwner(userId) && request.resource.data.instructorId == userId;
-        allow create: if isOwner(userId) && request.resource.data.id == courseId;
+        // Only the owner can read or delete their own drafts.
+        allow get, delete: if isOwner(userId) && docExists();
+        allow list: if isOwner(userId);
+        
+        // When creating, the user must be the owner and the instructorId in the
+        // document must match their own UID. The document ID must also match, and the status must be 'Draft'.
+        allow create: if isOwner(userId) 
+                       && request.resource.data.instructorId == userId 
+                       && request.resource.data.id == courseId
+                       && request.resource.data.status == 'Draft';
+
+        // When updating, the owner can modify it, but cannot change the instructorId or id.
         allow update: if isOwner(userId) && docExists() && isImmutableCourse();
-        allow delete: if isOwner(userId) && docExists();
       }
 
 
