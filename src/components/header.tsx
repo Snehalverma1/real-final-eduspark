@@ -38,6 +38,7 @@ export default function Header() {
   const isLoading = isUserLoading || isProfileLoading;
   const isLoggedIn = !isUserLoading && user;
   const isAdmin = userProfile?.role === 'admin';
+  const canCreateCourse = userProfile && userProfile.role !== 'student';
 
   return (
     <header className="sticky top-0 z-50 w-full border-b border-border/40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
@@ -53,24 +54,28 @@ export default function Header() {
           >
             Courses
           </Link>
-          <Link
-            href="/create-course"
-            className="transition-colors hover:text-foreground/80 text-foreground/60"
-          >
-            Create
-          </Link>
+          {canCreateCourse && (
+            <Link
+              href="/create-course"
+              className="transition-colors hover:text-foreground/80 text-foreground/60"
+            >
+              Create
+            </Link>
+          )}
         </nav>
         <div className="flex flex-1 items-center justify-end space-x-2">
           {isLoading ? (
             <Skeleton className="h-8 w-8 rounded-full" />
           ) : isLoggedIn ? (
             <>
-              <Button asChild variant="ghost" className="hidden md:flex">
-                <Link href="/create-course">
-                  <PlusCircle className="mr-2 h-4 w-4" />
-                  Create Course
-                </Link>
-              </Button>
+              {canCreateCourse && (
+                <Button asChild variant="ghost" className="hidden md:flex">
+                  <Link href="/create-course">
+                    <PlusCircle className="mr-2 h-4 w-4" />
+                    Create Course
+                  </Link>
+                </Button>
+              )}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button variant="ghost" className="relative h-8 w-8 rounded-full">
@@ -102,12 +107,14 @@ export default function Header() {
                     <User className="mr-2 h-4 w-4" />
                     <span>My Profile</span>
                   </DropdownMenuItem>
-                  <DropdownMenuItem asChild>
-                    <Link href="/create-course">
-                      <PlusCircle className="mr-2 h-4 w-4" />
-                      <span>Create Course</span>
-                    </Link>
-                  </DropdownMenuItem>
+                  {canCreateCourse && (
+                    <DropdownMenuItem asChild>
+                      <Link href="/create-course">
+                        <PlusCircle className="mr-2 h-4 w-4" />
+                        <span>Create Course</span>
+                      </Link>
+                    </DropdownMenuItem>
+                  )}
                   <DropdownMenuSeparator />
                   <DropdownMenuItem onClick={handleLogout}>
                     <LogOut className="mr-2 h-4 w-4" />

@@ -16,10 +16,10 @@ import {
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { PlusCircle, Trash2, Book, Film, Loader2 } from "lucide-react";
+import { PlusCircle, Trash2, Book, Film, Loader2, ShieldAlert } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
-import { useUser, useFirestore, errorEmitter, FirestorePermissionError } from "@/firebase";
+import { useUser, useFirestore, useDoc, useMemoFirebase, errorEmitter, FirestorePermissionError } from "@/firebase";
 import { doc, collection, setDoc } from 'firebase/firestore';
 import { useToast } from "@/hooks/use-toast";
 import { useRouter } from "next/navigation";
@@ -53,6 +53,13 @@ export default function CreateCoursePage() {
   const router = useRouter();
   const { toast } = useToast();
   const [isSaving, setIsSaving] = useState(false);
+  
+  const userProfileRef = useMemoFirebase(() => {
+    if (!firestore || !user) return null;
+    return doc(firestore, 'userProfiles', user.uid);
+  }, [firestore, user]);
+
+  const { data: userProfile, isLoading: isProfileLoading } = useDoc(userProfileRef);
 
   const form = useForm<CourseFormValues>({
     resolver: zodResolver(courseSchema),
@@ -70,6 +77,7 @@ export default function CreateCoursePage() {
   
   const { isSubmitting } = form.formState;
   const isBusy = isSubmitting || isSaving;
+  const isLoading = isUserLoading || isProfileLoading;
 
   function onSubmit(data: CourseFormValues) {
     if (!user || !firestore) {
@@ -141,7 +149,7 @@ export default function CreateCoursePage() {
       });
   }
 
-  if (isUserLoading) {
+  if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-[calc(100vh-4rem)]">
         <Loader2 className="h-8 w-8 animate-spin" />
@@ -150,7 +158,6 @@ export default function CreateCoursePage() {
   }
 
   if (!user) {
-    // Optionally redirect or show a message
     return (
        <div className="flex flex-col items-center justify-center min-h-[calc(100vh-4rem)] text-center p-4">
         <h1 className="text-3xl font-bold font-headline">Access Denied</h1>
@@ -160,6 +167,18 @@ export default function CreateCoursePage() {
         <Button onClick={() => router.push('/login')} className="mt-4">Login</Button>
       </div>
     )
+  }
+
+  if (userProfile?.role === 'student') {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[calc(100vh-4rem)] text-center p-4">
+        <ShieldAlert className="h-16 w-16 text-destructive mb-4" />
+        <h1 className="text-3xl font-bold font-headline">Access Denied</h1>
+        <p className="text-muted-foreground mt-2">
+          You do not have permission to create courses.
+        </p>
+      </div>
+    );
   }
 
   return (

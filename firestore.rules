@@ -148,7 +148,10 @@ service cloud.firestore {
       allow get: if isSignedIn() && (isOwner(resource.data.instructorId) || isAdmin() || isEnrolled(courseId) || studentCanAccessCourse(resource.data));
       // Allow listing of courses so users can browse them, but 'get' is what protects the content.
       allow list: if true;
-      allow create: if isSignedIn() && isOwner(request.resource.data.instructorId) && request.resource.data.id == courseId;
+      allow create: if isSignedIn() 
+                    && isOwner(request.resource.data.instructorId) 
+                    && request.resource.data.id == courseId
+                    && get(/databases/$(database)/documents/userProfiles/$(request.auth.uid)).data.role != 'student';
       allow update: if isSignedIn() && isOwner(resource.data.instructorId) && docExists() && isImmutableCourse();
       allow delete: if isSignedIn() && isOwner(resource.data.instructorId) && docExists();
     }
@@ -171,7 +174,8 @@ service cloud.firestore {
         allow create: if isOwner(userId) 
                        && request.resource.data.instructorId == userId 
                        && request.resource.data.id == courseId
-                       && request.resource.data.status == 'Draft';
+                       && request.resource.data.status == 'Draft'
+                       && get(/databases/$(database)/documents/userProfiles/$(request.auth.uid)).data.role != 'student';
 
         // When updating, the owner can modify it, but cannot change the instructorId or id.
         allow update: if isOwner(userId) && docExists() && isImmutableCourse();
