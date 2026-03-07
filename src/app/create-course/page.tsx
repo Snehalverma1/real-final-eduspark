@@ -169,13 +169,15 @@ export default function CreateCoursePage() {
     )
   }
 
-  if (userProfile?.role === 'student') {
+  if (userProfile?.role === 'student' || userProfile?.applicationStatus !== 'approved') {
     return (
       <div className="flex flex-col items-center justify-center min-h-[calc(100vh-4rem)] text-center p-4">
         <ShieldAlert className="h-16 w-16 text-destructive mb-4" />
         <h1 className="text-3xl font-bold font-headline">Access Denied</h1>
-        <p className="text-muted-foreground mt-2">
-          You do not have permission to create courses.
+        <p className="text-muted-foreground mt-2 max-w-md">
+          {userProfile?.role === 'student'
+            ? 'You do not have permission to create courses.'
+            : 'Your teacher application has not been approved yet. You cannot create courses at this time.'}
         </p>
       </div>
     );

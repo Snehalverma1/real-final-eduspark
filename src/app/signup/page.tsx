@@ -125,7 +125,7 @@ export default function SignupPage() {
         role: values.role,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
-        applicationStatus: values.role === 'subject-teacher' ? 'pending' : 'approved',
+        applicationStatus: (values.role === 'subject-teacher' || values.role === 'class-teacher') ? 'pending' : 'approved',
       };
       
       if (values.role === 'subject-teacher') {
@@ -142,7 +142,7 @@ export default function SignupPage() {
       
       toast({
         title: "Account Created",
-        description: values.role === 'subject-teacher' ? "Your application has been submitted for review." : "Your account has been created successfully.",
+        description: (values.role === 'subject-teacher' || values.role === 'class-teacher') ? "Your application has been submitted for review." : "Your account has been created successfully.",
       });
       // onAuthStateChanged will handle user state update and redirect
     } catch (error) {
@@ -390,5 +390,3 @@ export default function SignupPage() {
     </div>
   );
 }
-
-    

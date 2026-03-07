@@ -38,7 +38,7 @@ export default function Header() {
   const isLoading = isUserLoading || isProfileLoading;
   const isLoggedIn = !isUserLoading && user;
   const isAdmin = userProfile?.role === 'admin';
-  const canCreateCourse = userProfile && userProfile.role !== 'student';
+  const canCreateCourse = userProfile && userProfile.role !== 'student' && userProfile.applicationStatus === 'approved';
 
   return (
     <header className="sticky top-0 z-50 w-full border-b border-border/40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
