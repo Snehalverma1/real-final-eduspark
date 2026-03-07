@@ -151,7 +151,7 @@ export default function CourseView({ course }: { course: Course }) {
               src={activeLecture.content}
               title="Course video player"
               frameBorder="0"
-              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+              allow="autoplay; fullscreen; picture-in-picture"
               allowFullScreen
             ></iframe>
           </div>

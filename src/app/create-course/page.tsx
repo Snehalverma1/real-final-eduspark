@@ -115,8 +115,8 @@ export default function CreateCoursePage() {
     setDoc(courseRef, finalCourseData)
       .then(() => {
         toast({
-          title: "Course Created!",
-          description: "Your new course has been saved as a draft.",
+          title: "Course Draft Saved!",
+          description: "Your new course has been saved as a draft. You can manage it from 'My Courses'.",
         });
         router.push('/');
       })
@@ -131,7 +131,7 @@ export default function CreateCoursePage() {
         toast({
           variant: "destructive",
           title: "Uh oh! Something went wrong.",
-          description: "Could not save the course. Please try again.",
+          description: "Could not save the course. Please check your permissions and try again.",
         });
       })
       .finally(() => {
@@ -257,7 +257,7 @@ export default function CreateCoursePage() {
             <Button
               type="button"
               variant="outline"
-              onClick={() => appendChapter({ title: "New Chapter", lectures: [{ lectureNumber: 1, title: "New Lecture", type: "text", content: "Your lesson content here.", duration: 5 }] })}
+              onClick={() => appendChapter({ title: "", lectures: [{ lectureNumber: 1, title: "", type: "text", content: "", duration: 5 }] })}
               className="w-full"
             >
               <PlusCircle className="mr-2 h-4 w-4" /> Add Chapter
@@ -267,7 +267,7 @@ export default function CreateCoursePage() {
 
           <Button type="submit" size="lg" className="w-full" disabled={isBusy}>
             {isBusy && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            Create Course
+            Save as Draft
           </Button>
         </form>
       </Form>
@@ -385,7 +385,7 @@ function ChapterForm({ chapterIndex, form, removeChapter }: ChapterFormProps) {
                     <FormItem>
                       <FormLabel>Content</FormLabel>
                       <FormControl>
-                         <Textarea className="min-h-24" placeholder={form.watch(`chapters.${chapterIndex}.lectures.${lectureIndex}.type`) === 'video' ? "Enter video embed URL" : "Enter lesson text..."} {...field} />
+                         <Textarea className="min-h-24" placeholder={form.watch(`chapters.${chapterIndex}.lectures.${lectureIndex}.type`) === 'video' ? "Enter Vimeo or YouTube embed URL" : "Enter lesson text..."} {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -410,7 +410,7 @@ function ChapterForm({ chapterIndex, form, removeChapter }: ChapterFormProps) {
             <Button
             type="button"
             variant="outline"
-            onClick={() => appendLecture({ lectureNumber: lectureFields.length + 1, title: "New Lecture", type: "text", content: "Your lesson content here.", duration: 5 })}
+            onClick={() => appendLecture({ lectureNumber: lectureFields.length + 1, title: "", type: "text", content: "", duration: 5 })}
             className="w-full"
             >
             <PlusCircle className="mr-2 h-4 w-4" /> Add Lecture
