@@ -8,7 +8,8 @@
  *
  * Data Structure
  * The data is organized to enforce security boundaries naturally:
- * - /userProfiles/{userId}: Each user controls their own profile document.
+ * - /userProfiles/{userId}: Each user controls their own profile document. The `role` field within this
+ *   document is the source of truth for a user's privileges.
  * - /users/{userId}/: This is a private data tree for each user, containing their draft courses,
  *   enrollments, and lesson progress. Access is strictly limited to the user specified in the path.
  * - /courses/{courseId}: A top-level collection for publicly visible courses. Writes are
@@ -16,8 +17,6 @@
  *   or students of the correct class.
  * - /categories/{categoryId}: A public, read-only collection for course categories, which can only be
  *   managed by administrators.
- * - /roles_admins/{userId}: An existence-based collection for granting administrator privileges.
- *   This collection is not readable or writable by any client.
  *
  * Key Security Decisions
  * - Default Deny: All paths are closed by default. Access is only granted through explicit allow rules.
@@ -49,9 +48,10 @@ service cloud.firestore {
     }
 
     // Returns true if the user is an administrator.
-    // Checks for the existence of a document in the roles_admins collection.
+    // Checks the `role` field in the user's profile document. This `get` call is
+    // acceptable as it's for authorization on non-list operations.
     function isAdmin() {
-      return exists(/databases/$(database)/documents/roles_admins/$(request.auth.uid));
+      return isSignedIn() && get(/databases/$(database)/documents/userProfiles/$(request.auth.uid)).data.role == 'admin';
     }
 
     // Returns true if the document being accessed already exists.
@@ -119,12 +119,6 @@ service cloud.firestore {
                     && request.resource.data.email == resource.data.email
                     && request.resource.data.createdAt == resource.data.createdAt);
       allow delete: if isOwner(userId) && docExists();
-    }
-
-    // Existence-based role management for administrators. This collection is for backend checks only.
-    // Path: /roles_admins/{userId}
-    match /roles_admins/{userId} {
-      allow read, write: if false;
     }
 
     // --------------------------------------------------------------------
