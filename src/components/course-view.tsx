@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useActionState } from "react";
 import type { Course, Lecture, Chapter } from "@/lib/data";
 import { Progress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
@@ -112,6 +112,29 @@ export default function CourseView({ course }: { course: Course }) {
     });
   };
 
+  const getVideoEmbedUrl = (url: string): string => {
+    if (!url) return "";
+
+    // Check for Vimeo
+    const vimeoRegex = /vimeo\.com\/(\d+)/;
+    const vimeoMatch = url.match(vimeoRegex);
+    if (vimeoMatch && vimeoMatch[1]) {
+      // It's a standard Vimeo URL, convert it
+      return `https://player.vimeo.com/video/${vimeoMatch[1]}?autoplay=1&title=0&byline=0&portrait=0`;
+    }
+    
+    // Check for YouTube
+    const youtubeRegex = /(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/ ]{11})/;
+    const youtubeMatch = url.match(youtubeRegex);
+    if (youtubeMatch && youtubeMatch[1]) {
+        // It's a standard youtube URL, convert it
+        return `https://www.youtube.com/embed/${youtubeMatch[1]}`;
+    }
+
+    // If it's already an embed URL (for either platform) or some other URL, return it as is.
+    return url;
+  };
+
   return (
     <div className="grid md:grid-cols-[350px_1fr] min-h-[calc(100vh-4rem)]">
       <CourseSidebar 
@@ -151,7 +174,7 @@ export default function CourseView({ course }: { course: Course }) {
                     <iframe
                     key={activeLecture.id}
                     className="w-full h-full"
-                    src={activeLecture.content}
+                    src={getVideoEmbedUrl(activeLecture.content)}
                     title="Course video player"
                     frameBorder="0"
                     allow="autoplay; fullscreen; picture-in-picture"

@@ -387,7 +387,7 @@ function ChapterForm({ chapterIndex, form, removeChapter }: ChapterFormProps) {
                     <FormItem>
                       <FormLabel>Content</FormLabel>
                       <FormControl>
-                         <Textarea className="min-h-24" placeholder={form.watch(`chapters.${chapterIndex}.lectures.${lectureIndex}.type`) === 'video' ? "Enter Vimeo or YouTube embed URL" : "Enter lesson text..."} {...field} />
+                         <Textarea className="min-h-24" placeholder={form.watch(`chapters.${chapterIndex}.lectures.${lectureIndex}.type`) === 'video' ? "Enter video URL from Vimeo or YouTube" : "Enter lesson text..."} {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
