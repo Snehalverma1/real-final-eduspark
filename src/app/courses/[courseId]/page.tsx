@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useMemo } from 'react';
@@ -10,8 +9,6 @@ import { Loader2 } from "lucide-react";
 import type { Course } from "@/lib/data";
 
 export default function CoursePage() {
-  // useParams returns an object with the dynamic route parameters.
-  // For this page, it will be { courseId: "the-actual-id" }.
   const params = useParams<{ courseId: string }>();
   const courseId = params?.courseId;
 
@@ -22,7 +19,7 @@ export default function CoursePage() {
     return doc(firestore, 'courses', courseId);
   }, [firestore, courseId]);
 
-  const { data: courseData, isLoading: isCourseLoading } = useDoc(courseRef);
+  const { data: courseData, isLoading } = useDoc(courseRef);
 
   const course: Course | null = useMemo(() => {
     if (!courseData) {
@@ -52,9 +49,6 @@ export default function CoursePage() {
     };
   }, [courseData]);
 
-  // The main loading condition. We should wait until we have a courseId AND the course data is done loading.
-  const isLoading = !courseId || isCourseLoading;
-
   if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-[calc(100vh-4rem)]">
@@ -63,7 +57,6 @@ export default function CoursePage() {
     );
   }
 
-  // After loading, if there's no course data, trigger a 404.
   if (!course) {
     notFound();
   }
