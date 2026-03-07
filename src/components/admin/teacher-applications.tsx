@@ -43,6 +43,26 @@ export default function TeacherApplications() {
   
   const isLoading = isProfileLoading || areApplicationsLoading;
 
+  const handleUpdateStatus = async (userId: string, status: 'approved' | 'rejected') => {
+    if (!firestore) return;
+
+    const userDocRef = doc(firestore, 'userProfiles', userId);
+    try {
+      await updateDoc(userDocRef, { applicationStatus: status });
+      toast({
+        title: 'Status Updated',
+        description: `The application has been ${status}.`,
+      });
+    } catch (error) {
+      console.error('Error updating status:', error);
+      toast({
+        variant: 'destructive',
+        title: 'Update Failed',
+        description: 'Could not update the application status.',
+      });
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center p-8">
