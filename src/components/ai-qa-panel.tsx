@@ -1,6 +1,7 @@
 "use client";
 
-import { useFormState, useFormStatus } from "react-dom";
+import { useActionState } from "react";
+import { useFormStatus } from "react-dom";
 import {
   Sheet,
   SheetContent,
@@ -41,7 +42,7 @@ export default function AiQaPanel({
   setIsOpen,
   courseMaterial,
 }: AIQaPanelProps) {
-  const [formState, formAction] = useFormState(
+  const [formState, formAction] = useActionState(
     async (
       prevState: FormState,
       formData: FormData
