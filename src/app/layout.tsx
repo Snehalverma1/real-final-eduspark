@@ -3,6 +3,7 @@ import './globals.css';
 import { Toaster } from "@/components/ui/toaster";
 import Header from '@/components/header';
 import { cn } from '@/lib/utils';
+import { FirebaseClientProvider } from '@/firebase/client-provider';
 
 export const metadata: Metadata = {
   title: 'EduSpark',
@@ -22,9 +23,11 @@ export default function RootLayout({
         <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet" />
       </head>
       <body className={cn("font-body antialiased min-h-screen bg-background")}>
-        <Header />
-        <main>{children}</main>
-        <Toaster />
+        <FirebaseClientProvider>
+          <Header />
+          <main>{children}</main>
+          <Toaster />
+        </FirebaseClientProvider>
       </body>
     </html>
   );

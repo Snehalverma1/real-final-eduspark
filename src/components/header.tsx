@@ -1,3 +1,5 @@
+"use client";
+
 import Link from "next/link";
 import { BookOpen, LogIn, UserPlus, LogOut, User, PlusCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -10,10 +12,21 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback, AvatarImage } from "./ui/avatar";
+import { useUser, useAuth } from "@/firebase/provider";
+import { signOut } from "firebase/auth";
+import { Skeleton } from "./ui/skeleton";
 
 export default function Header() {
-  // Mock user state
-  const isLoggedIn = false;
+  const { user, isUserLoading } = useUser();
+  const auth = useAuth();
+
+  const handleLogout = () => {
+    if (auth) {
+      signOut(auth);
+    }
+  };
+
+  const isLoggedIn = !isUserLoading && user;
 
   return (
     <header className="sticky top-0 z-50 w-full border-b border-border/40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
@@ -37,7 +50,9 @@ export default function Header() {
           </Link>
         </nav>
         <div className="flex flex-1 items-center justify-end space-x-2">
-          {isLoggedIn ? (
+          {isUserLoading ? (
+            <Skeleton className="h-8 w-8 rounded-full" />
+          ) : isLoggedIn ? (
             <>
               <Button asChild variant="ghost" className="hidden md:flex">
                 <Link href="/create-course">
@@ -49,17 +64,17 @@ export default function Header() {
                 <DropdownMenuTrigger asChild>
                   <Button variant="ghost" className="relative h-8 w-8 rounded-full">
                     <Avatar className="h-8 w-8">
-                      <AvatarImage src="https://picsum.photos/seed/user-avatar/40/40" alt="User" />
-                      <AvatarFallback>U</AvatarFallback>
+                      <AvatarImage src={user.photoURL || `https://picsum.photos/seed/${user.uid}/40/40`} alt={user.displayName || "User"} />
+                      <AvatarFallback>{user.email?.charAt(0).toUpperCase()}</AvatarFallback>
                     </Avatar>
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent className="w-56" align="end" forceMount>
                   <DropdownMenuLabel className="font-normal">
                     <div className="flex flex-col space-y-1">
-                      <p className="text-sm font-medium leading-none">EduSpark User</p>
+                      <p className="text-sm font-medium leading-none">{user.displayName || 'EduSpark User'}</p>
                       <p className="text-xs leading-none text-muted-foreground">
-                        user@eduspark.com
+                        {user.email}
                       </p>
                     </div>
                   </DropdownMenuLabel>
@@ -75,7 +90,7 @@ export default function Header() {
                     </Link>
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem>
+                  <DropdownMenuItem onClick={handleLogout}>
                     <LogOut className="mr-2 h-4 w-4" />
                     <span>Log out</span>
                   </DropdownMenuItem>
