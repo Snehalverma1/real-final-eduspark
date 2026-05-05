@@ -50,7 +50,7 @@ export default function LiveClassroom({ courseId, isInstructor }: LiveClassroomP
         toast({
           variant: 'destructive',
           title: 'Camera Access Denied',
-          description: 'Please enable camera permissions to use the live teaching feature.',
+          description: 'Please enable camera permissions in your browser settings to use this app.',
         });
       } finally {
         setLoading(false);
@@ -132,7 +132,7 @@ export default function LiveClassroom({ courseId, isInstructor }: LiveClassroomP
           <Badge variant={isActive ? "default" : "secondary"} className={cn(isActive && "bg-red-500 animate-pulse")}>
             {isActive ? "LIVE" : "OFFLINE"}
           </Badge>
-          <h2 className="text-2xl font-bold font-headline">Live Classroom</h2>
+          <h2 className="text-2xl font-bold font-headline text-foreground">Live Classroom</h2>
         </div>
         <div className="flex gap-2">
           {isInstructor && !isActive && (
@@ -151,6 +151,7 @@ export default function LiveClassroom({ courseId, isInstructor }: LiveClassroomP
       <div className="grid lg:grid-cols-[1fr_300px] gap-6">
         <div className="space-y-4">
           <div className="relative aspect-video bg-black rounded-xl overflow-hidden border shadow-2xl group">
+            {/* Always show video tag irrespective of hasCameraPermission check to prevent race condition */}
             <video 
               ref={videoRef} 
               className="w-full h-full object-cover" 
@@ -179,11 +180,11 @@ export default function LiveClassroom({ courseId, isInstructor }: LiveClassroomP
             )}
           </div>
 
-          {!hasCameraPermission && isInstructor && (
+          { isInstructor && hasCameraPermission === false && (
             <Alert variant="destructive">
               <AlertTitle>Camera Access Required</AlertTitle>
               <AlertDescription>
-                Please allow camera and microphone access in your browser settings to start teaching live.
+                Please allow camera access to use this feature.
               </AlertDescription>
             </Alert>
           )}
