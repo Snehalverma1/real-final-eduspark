@@ -1,5 +1,4 @@
-// Updated security rules for EduSpark - Live Teaching Support
-// Deployment trigger: Live feature finalization
+// Updated security rules for EduSpark - Fixing course access permissions
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
@@ -91,7 +90,14 @@ service cloud.firestore {
     }
 
     match /courses/{courseId} {
-      allow get: if isSignedIn() && (isOwner(resource.data.instructorId) || isAdmin() || isEnrolled(courseId) || studentCanAccessCourse(resource.data));
+      // FIX: Allow any signed-in user to see a published course.
+      // They still need to be enrolled or match class to access specific sub-content or live rooms if desired.
+      allow get: if isSignedIn() && (
+        resource.data.status == 'Published' || 
+        isOwner(resource.data.instructorId) || 
+        isAdmin() || 
+        isEnrolled(courseId)
+      );
       allow list: if true;
       allow create: if isApprovedTeacher() && isOwner(request.resource.data.instructorId) && request.resource.data.id == courseId;
       allow update: if isSignedIn() && (isOwner(resource.data.instructorId) || isAdmin()) && docExists() && isImmutableCourse();
