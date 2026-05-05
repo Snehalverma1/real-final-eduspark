@@ -1,4 +1,3 @@
-
 "use client";
 
 import Link from "next/link";
@@ -41,7 +40,7 @@ export default function Header() {
   const isAdmin = userProfile?.role === 'admin';
   const isTeacher = userProfile?.role === 'class-teacher' || userProfile?.role === 'subject-teacher';
   const isApproved = userProfile?.applicationStatus === 'approved';
-  const canCreateCourse = isTeacher && isApproved;
+  const canCreateCourse = (isTeacher || isAdmin) && (isApproved || isAdmin);
 
   return (
     <header className="sticky top-0 z-50 w-full border-b border-border/40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
@@ -57,9 +56,9 @@ export default function Header() {
           >
             Courses
           </Link>
-          {isTeacher && (
+          {(isTeacher || isAdmin) && (
             <Link
-              href="/dashboard"
+              href={isAdmin ? "/admin" : "/dashboard"}
               className="transition-colors hover:text-foreground/80 text-foreground/60"
             >
               Dashboard
@@ -87,24 +86,29 @@ export default function Header() {
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button variant="ghost" className="relative h-8 w-8 rounded-full">
-                    <Avatar className="h-8 w-8">
+                    <Avatar className="h-8 w-8 border-2 border-primary/20">
                       <AvatarImage src={user.photoURL || `https://picsum.photos/seed/${user.uid}/40/40`} alt={user.displayName || "User"} />
-                      <AvatarFallback>{user.email?.charAt(0).toUpperCase()}</AvatarFallback>
+                      <AvatarFallback className="bg-primary/10 text-primary">
+                        {user.email?.charAt(0).toUpperCase()}
+                      </AvatarFallback>
                     </Avatar>
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent className="w-56" align="end" forceMount>
                   <DropdownMenuLabel className="font-normal">
                     <div className="flex flex-col space-y-1">
-                      <p className="text-sm font-medium leading-none">{user.displayName || 'EduSpark User'}</p>
-                      <p className="text-xs leading-none text-muted-foreground">
+                      <p className="text-sm font-semibold leading-none">{user.displayName || 'EduSpark User'}</p>
+                      <p className="text-xs leading-none text-muted-foreground truncate">
                         {user.email}
                       </p>
+                      {isAdmin && (
+                        <span className="text-[10px] uppercase tracking-wider text-primary font-bold mt-1">Administrator</span>
+                      )}
                     </div>
                   </DropdownMenuLabel>
                   <DropdownMenuSeparator />
                   {isAdmin && (
-                     <DropdownMenuItem asChild>
+                     <DropdownMenuItem asChild className="text-primary font-medium focus:bg-primary/5 focus:text-primary">
                        <Link href="/admin">
                          <Shield className="mr-2 h-4 w-4" />
                          <span>Admin Dashboard</span>
@@ -123,16 +127,8 @@ export default function Header() {
                     <User className="mr-2 h-4 w-4" />
                     <span>My Profile</span>
                   </DropdownMenuItem>
-                  {canCreateCourse && (
-                    <DropdownMenuItem asChild>
-                      <Link href="/create-course">
-                        <PlusCircle className="mr-2 h-4 w-4" />
-                        <span>Create Course</span>
-                      </Link>
-                    </DropdownMenuItem>
-                  )}
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={handleLogout}>
+                  <DropdownMenuItem onClick={handleLogout} className="text-destructive focus:bg-destructive/5 focus:text-destructive">
                     <LogOut className="mr-2 h-4 w-4" />
                     <span>Log out</span>
                   </DropdownMenuItem>

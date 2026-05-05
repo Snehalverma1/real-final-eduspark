@@ -16,12 +16,13 @@ import {
 } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { BookOpen, Loader2 } from 'lucide-react';
+import { BookOpen, Loader2, Shield } from 'lucide-react';
 import { Form, FormControl, FormField, FormItem, FormMessage } from '@/components/ui/form';
 import { useAuth, useUser } from '@/firebase';
 import { signInWithEmailAndPassword } from 'firebase/auth';
 import { useToast } from '@/hooks/use-toast';
 import { FirebaseError } from 'firebase/app';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 const formSchema = z.object({
   email: z.string().email('Please enter a valid email address.'),
@@ -57,8 +58,6 @@ export default function LoginPage() {
 
     try {
       await signInWithEmailAndPassword(auth, values.email, values.password);
-      // onAuthStateChanged in provider will handle user state update
-      // useEffect will handle redirect, no need to do anything here.
     } catch (error) {
       let title = "Login Failed";
       let description = "An unexpected error occurred. Please try again.";
@@ -88,8 +87,8 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="flex items-center justify-center min-h-[calc(100vh-4rem)] p-4">
-      <Card className="w-full max-w-sm mx-auto">
+    <div className="flex flex-col items-center justify-center min-h-[calc(100vh-4rem)] p-4 space-y-6">
+      <Card className="w-full max-w-sm mx-auto shadow-xl">
         <CardHeader className="text-center">
           <div className="flex justify-center items-center mb-4">
             <BookOpen className="h-8 w-8 text-primary" />
@@ -130,9 +129,9 @@ export default function LoginPage() {
                       <Label htmlFor="password">Password</Label>
                       <Link
                         href="#"
-                        className="ml-auto inline-block text-sm underline"
+                        className="ml-auto inline-block text-sm underline text-muted-foreground hover:text-primary"
                       >
-                        Forgot your password?
+                        Forgot?
                       </Link>
                     </div>
                     <FormControl>
@@ -148,14 +147,22 @@ export default function LoginPage() {
               </Button>
             </form>
           </Form>
-          <div className="mt-4 text-center text-sm">
+          <div className="mt-6 text-center text-sm">
             Don&apos;t have an account?{" "}
-            <Link href="/signup" className="underline">
+            <Link href="/signup" className="font-semibold underline text-primary">
               Sign up
             </Link>
           </div>
         </CardContent>
       </Card>
+
+      <Alert className="max-w-sm bg-primary/5 border-primary/20">
+        <Shield className="h-4 w-4 text-primary" />
+        <AlertTitle className="text-primary font-headline font-semibold">Admin Access</AlertTitle>
+        <AlertDescription className="text-xs">
+          To log in as admin, first navigate to <Link href="/create-admin" className="underline font-bold">/create-admin</Link> to set up your master account.
+        </AlertDescription>
+      </Alert>
     </div>
   );
 }
