@@ -1,7 +1,8 @@
+
 "use client";
 
 import Link from "next/link";
-import { BookOpen, LogIn, UserPlus, LogOut, User, PlusCircle, Shield } from "lucide-react";
+import { BookOpen, LogIn, UserPlus, LogOut, User, PlusCircle, Shield, LayoutDashboard } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -38,7 +39,9 @@ export default function Header() {
   const isLoading = isUserLoading || isProfileLoading;
   const isLoggedIn = !isUserLoading && user;
   const isAdmin = userProfile?.role === 'admin';
-  const canCreateCourse = userProfile && userProfile.role !== 'student' && userProfile.applicationStatus === 'approved';
+  const isTeacher = userProfile?.role === 'class-teacher' || userProfile?.role === 'subject-teacher';
+  const isApproved = userProfile?.applicationStatus === 'approved';
+  const canCreateCourse = isTeacher && isApproved;
 
   return (
     <header className="sticky top-0 z-50 w-full border-b border-border/40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
@@ -54,12 +57,12 @@ export default function Header() {
           >
             Courses
           </Link>
-          {canCreateCourse && (
+          {isTeacher && (
             <Link
-              href="/create-course"
+              href="/dashboard"
               className="transition-colors hover:text-foreground/80 text-foreground/60"
             >
-              Create
+              Dashboard
             </Link>
           )}
         </nav>
@@ -69,12 +72,17 @@ export default function Header() {
           ) : isLoggedIn ? (
             <>
               {canCreateCourse && (
-                <Button asChild variant="ghost" className="hidden md:flex">
+                <Button asChild variant="ghost" size="sm" className="hidden md:flex">
                   <Link href="/create-course">
                     <PlusCircle className="mr-2 h-4 w-4" />
-                    Create Course
+                    New Course
                   </Link>
                 </Button>
+              )}
+              {!isApproved && isTeacher && (
+                <span className="text-xs bg-yellow-500/10 text-yellow-600 px-2 py-1 rounded-full border border-yellow-500/20 mr-2">
+                  Approval Pending
+                </span>
               )}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
@@ -102,6 +110,14 @@ export default function Header() {
                          <span>Admin Dashboard</span>
                        </Link>
                      </DropdownMenuItem>
+                  )}
+                  {isTeacher && (
+                    <DropdownMenuItem asChild>
+                      <Link href="/dashboard">
+                        <LayoutDashboard className="mr-2 h-4 w-4" />
+                        <span>Teacher Dashboard</span>
+                      </Link>
+                    </DropdownMenuItem>
                   )}
                   <DropdownMenuItem>
                     <User className="mr-2 h-4 w-4" />
