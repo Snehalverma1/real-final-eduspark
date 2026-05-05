@@ -149,7 +149,7 @@ export default function CourseView({ course }: { course: Course }) {
       <main className="p-4 md:p-8">
         {isLive && (
           <Link href={`/courses/${course.id}/live`}>
-            <div className="mb-6 p-4 bg-red-500/10 border border-red-500/20 rounded-lg flex items-center justify-between animate-in fade-in slide-in-from-top-4 transition-all hover:bg-red-500/20 group">
+            <div className="mb-6 p-4 bg-red-500/10 border border-red-500/20 rounded-lg flex items-center justify-between animate-in fade-in slide-in-from-top-4 transition-all hover:bg-red-500/20 group cursor-pointer">
               <div className="flex items-center gap-3">
                 <div className="relative">
                   <Radio className="h-5 w-5 text-red-500" />

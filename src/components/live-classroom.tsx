@@ -151,7 +151,6 @@ export default function LiveClassroom({ courseId, isInstructor }: LiveClassroomP
       <div className="grid lg:grid-cols-[1fr_300px] gap-6">
         <div className="space-y-4">
           <div className="relative aspect-video bg-black rounded-xl overflow-hidden border shadow-2xl group">
-            {/* Always show video tag irrespective of hasCameraPermission check to prevent race condition */}
             <video 
               ref={videoRef} 
               className="w-full h-full object-cover" 
