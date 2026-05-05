@@ -1,6 +1,6 @@
 'use client';
 
-import { useFirestore, useCollection, useMemoFirebase, useUser, useDoc } from '@/firebase';
+import { useFirestore, useCollection, useMemoFirebase, useUser, useDoc, errorEmitter, FirestorePermissionError } from '@/firebase';
 import { collection, query, where, doc, updateDoc } from 'firebase/firestore';
 import {
   Table,
@@ -13,7 +13,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { Badge } from '@/components/ui/badge';
-import { Loader2 } from 'lucide-react';
+import { Loader2, CheckCircle, XCircle } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 
 export default function TeacherApplications() {
@@ -31,7 +31,7 @@ export default function TeacherApplications() {
   const isAdmin = userProfile?.role === 'admin';
 
   const applicationsQuery = useMemoFirebase(() => {
-    if (!firestore || !isAdmin) return null; // Only query if user is an admin
+    if (!firestore || !isAdmin) return null;
     return query(
         collection(firestore, 'userProfiles'), 
         where('applicationStatus', '==', 'pending'),
@@ -43,86 +43,112 @@ export default function TeacherApplications() {
   
   const isLoading = isProfileLoading || areApplicationsLoading;
 
-  const handleUpdateStatus = async (userId: string, status: 'approved' | 'rejected') => {
+  const handleUpdateStatus = (userId: string, status: 'approved' | 'rejected') => {
     if (!firestore) return;
 
     const userDocRef = doc(firestore, 'userProfiles', userId);
-    try {
-      await updateDoc(userDocRef, { applicationStatus: status });
-      toast({
-        title: 'Status Updated',
-        description: `The application has been ${status}.`,
+    const updateData = { applicationStatus: status, updatedAt: new Date().toISOString() };
+
+    updateDoc(userDocRef, updateData)
+      .then(() => {
+        toast({
+          title: 'Status Updated',
+          description: `The application has been successfully ${status}.`,
+        });
+      })
+      .catch((error) => {
+        const permissionError = new FirestorePermissionError({
+          path: userDocRef.path,
+          operation: 'update',
+          requestResourceData: updateData,
+        });
+        errorEmitter.emit('permission-error', permissionError);
       });
-    } catch (error) {
-      console.error('Error updating status:', error);
-      toast({
-        variant: 'destructive',
-        title: 'Update Failed',
-        description: 'Could not update the application status.',
-      });
-    }
   };
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center p-8">
-        <Loader2 className="h-8 w-8 animate-spin" />
+      <div className="flex items-center justify-center p-12">
+        <Loader2 className="h-10 w-10 animate-spin text-primary" />
       </div>
     );
   }
 
+  if (!isAdmin) {
+    return null;
+  }
+
   return (
-    <Card>
+    <Card className="border-none shadow-lg bg-card/50 backdrop-blur-sm">
       <CardHeader>
-        <CardTitle>Account Applications</CardTitle>
-        <CardDescription>Review and approve or reject pending teacher applications.</CardDescription>
+        <CardTitle className="text-2xl font-headline">Pending Applications</CardTitle>
+        <CardDescription>Review credentials for new teachers joining the platform.</CardDescription>
       </CardHeader>
       <CardContent>
          {!applications || applications.length === 0 ? (
-            <p className="text-muted-foreground">No pending applications.</p>
+            <div className="text-center py-12">
+              <CheckCircle className="h-12 w-12 text-muted-foreground/30 mx-auto mb-4" />
+              <p className="text-muted-foreground font-medium">All caught up! No pending applications.</p>
+            </div>
          ) : (
-            <Table>
-            <TableHeader>
-                <TableRow>
-                <TableHead>Name</TableHead>
-                <TableHead>Email</TableHead>
-                <TableHead>Role</TableHead>
-                <TableHead>Details</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-            </TableHeader>
-            <TableBody>
-                {applications.map((app) => (
-                <TableRow key={app.id}>
-                    <TableCell className="font-medium">{app.name}</TableCell>
-                    <TableCell>{app.email}</TableCell>
-                    <TableCell>
-                        <Badge variant={app.role === 'subject-teacher' ? 'default' : 'secondary'}>
-                            {app.role === 'subject-teacher' ? 'Subject Teacher' : 'Class Teacher'}
-                        </Badge>
-                    </TableCell>
-                    <TableCell className="text-sm text-muted-foreground max-w-xs">
-                        {app.role === 'subject-teacher' ? (
-                        <div>
-                            <p><span className="font-semibold text-foreground">Subjects:</span> {app.subjects?.join(', ') || 'N/A'}</p>
-                            <p className="mt-1"><span className="font-semibold text-foreground">Experience:</span> {app.experience || 'N/A'}</p>
-                        </div>
-                        ) : (
-                        <p><span className="font-semibold text-foreground">Class:</span> {app.class}-{app.section}</p>
-                        )}
-                  </TableCell>
-                    <TableCell>
-                    <Badge variant="outline">{app.applicationStatus}</Badge>
-                    </TableCell>
-                    <TableCell className="text-right space-x-2">
-                    <Button size="sm" onClick={() => handleUpdateStatus(app.id, 'approved')}>Approve</Button>
-                    <Button size="sm" variant="destructive" onClick={() => handleUpdateStatus(app.id, 'rejected')}>Reject</Button>
-                    </TableCell>
-                </TableRow>
-                ))}
-            </TableBody>
-            </Table>
+            <div className="rounded-md border bg-background">
+              <Table>
+                <TableHeader>
+                    <TableRow className="hover:bg-transparent">
+                    <TableHead>Teacher Info</TableHead>
+                    <TableHead>Role</TableHead>
+                    <TableHead>Experience / Class</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
+                    </TableRow>
+                </TableHeader>
+                <TableBody>
+                    {applications.map((app) => (
+                    <TableRow key={app.id} className="group transition-colors">
+                        <TableCell>
+                            <div className="flex flex-col">
+                              <span className="font-bold text-foreground">{app.name}</span>
+                              <span className="text-xs text-muted-foreground">{app.email}</span>
+                            </div>
+                        </TableCell>
+                        <TableCell>
+                            <Badge variant={app.role === 'subject-teacher' ? 'default' : 'secondary'} className="capitalize">
+                                {app.role.replace('-', ' ')}
+                            </Badge>
+                        </TableCell>
+                        <TableCell className="max-w-xs">
+                            {app.role === 'subject-teacher' ? (
+                            <div className="text-sm">
+                                <p className="line-clamp-1"><span className="text-muted-foreground mr-1">Subjects:</span> {app.subjects?.join(', ') || 'N/A'}</p>
+                                <p className="line-clamp-1 mt-0.5 italic text-muted-foreground">{app.experience || 'No experience listed'}</p>
+                            </div>
+                            ) : (
+                            <Badge variant="outline">Class {app.class}-{app.section}</Badge>
+                            )}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex justify-end gap-2">
+                            <Button 
+                              size="sm" 
+                              onClick={() => handleUpdateStatus(app.id, 'approved')}
+                              className="bg-green-600 hover:bg-green-700"
+                            >
+                              Approve
+                            </Button>
+                            <Button 
+                              size="sm" 
+                              variant="ghost"
+                              onClick={() => handleUpdateStatus(app.id, 'rejected')}
+                              className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+                            >
+                              <XCircle className="h-4 w-4 mr-1" /> Reject
+                            </Button>
+                          </div>
+                        </TableCell>
+                    </TableRow>
+                    ))}
+                </TableBody>
+              </Table>
+            </div>
          )}
       </CardContent>
     </Card>
