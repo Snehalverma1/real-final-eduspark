@@ -1,4 +1,4 @@
-
+// Updated security rules for EduSpark
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
@@ -93,13 +93,13 @@ service cloud.firestore {
       allow get: if isSignedIn() && (isOwner(resource.data.instructorId) || isAdmin() || isEnrolled(courseId) || studentCanAccessCourse(resource.data));
       allow list: if true;
       allow create: if isApprovedTeacher() && isOwner(request.resource.data.instructorId) && request.resource.data.id == courseId;
-      allow update: if isSignedIn() && isOwner(resource.data.instructorId) && docExists() && isImmutableCourse();
-      allow delete: if isSignedIn() && isOwner(resource.data.instructorId) && docExists();
+      allow update: if isSignedIn() && (isOwner(resource.data.instructorId) || isAdmin()) && docExists() && isImmutableCourse();
+      allow delete: if isSignedIn() && (isOwner(resource.data.instructorId) || isAdmin()) && docExists();
 
       // Live Sessions Subcollection
       match /liveSessions/{sessionId} {
-        allow read: if isSignedIn() && (isEnrolled(courseId) || isOwner(get(/databases/$(database)/documents/courses/$(courseId)).data.instructorId));
-        allow create, update, delete: if isSignedIn() && isOwner(get(/databases/$(database)/documents/courses/$(courseId)).data.instructorId);
+        allow read: if isSignedIn() && (isEnrolled(courseId) || isOwner(get(/databases/$(database)/documents/courses/$(courseId)).data.instructorId) || isAdmin());
+        allow create, update, delete: if isSignedIn() && (isOwner(get(/databases/$(database)/documents/courses/$(courseId)).data.instructorId) || isAdmin());
       }
     }
 
@@ -117,7 +117,7 @@ service cloud.firestore {
       }
 
       match /enrollments/{courseId} {
-        allow read, write: if isOwner(userId);
+        allow read: if isOwner(userId);
         allow create: if isOwner(userId) && request.resource.data.studentId == userId && request.resource.data.id == courseId
                       && isStudentInCourseClass(courseId);
         allow update: if isOwner(userId) && docExists() && isImmutableEnrollment();
