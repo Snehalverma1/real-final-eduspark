@@ -20,15 +20,9 @@ export default function LivePage() {
     return doc(firestore, 'courses', courseId);
   }, [firestore, courseId]);
 
-  const userProfileRef = useMemoFirebase(() => {
-    if (!firestore || !user) return null;
-    return doc(firestore, 'userProfiles', user.uid);
-  }, [firestore, user]);
-
   const { data: course, isLoading: isCourseLoading } = useDoc(courseRef);
-  const { data: userProfile, isLoading: isProfileLoading } = useDoc(userProfileRef);
 
-  const isLoading = isUserLoading || isCourseLoading || isProfileLoading;
+  const isLoading = isUserLoading || isCourseLoading;
 
   if (isLoading) {
     return (

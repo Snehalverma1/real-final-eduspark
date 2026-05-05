@@ -99,10 +99,8 @@
         "courseId": { "type": "string" },
         "instructorId": { "type": "string" },
         "instructorName": { "type": "string" },
-        "title": { "type": "string" },
         "status": { "type": "string", "enum": ["active", "ended"] },
-        "createdAt": { "type": "string", "format": "date-time" },
-        "offer": { "type": "object", "description": "WebRTC SDP Offer" }
+        "createdAt": { "type": "string", "format": "date-time" }
       },
       "required": ["id", "courseId", "instructorId", "status", "createdAt"]
     },

@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useUser, useFirestore, useDoc, useMemoFirebase, errorEmitter, FirestorePermissionError } from '@/firebase';
-import { doc, setDoc, updateDoc, deleteDoc, onSnapshot } from 'firebase/firestore';
+import { doc, setDoc, deleteDoc } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -26,7 +26,6 @@ export default function LiveClassroom({ courseId, isInstructor }: LiveClassroomP
   const [stream, setStream] = useState<MediaStream | null>(null);
   const [isAudioEnabled, setIsAudioEnabled] = useState(true);
   const [isVideoEnabled, setIsVideoEnabled] = useState(true);
-  const [sessionActive, setSessionActive] = useState(false);
   const [loading, setLoading] = useState(true);
 
   const sessionId = 'active_session';
@@ -70,7 +69,7 @@ export default function LiveClassroom({ courseId, isInstructor }: LiveClassroomP
         stream.getTracks().forEach(track => track.stop());
       }
     };
-  }, [isInstructor]);
+  }, [isInstructor, toast]); // Toast added to deps as it comes from hook
 
   const startSession = () => {
     if (!sessionRef || !user) return;
@@ -86,7 +85,6 @@ export default function LiveClassroom({ courseId, isInstructor }: LiveClassroomP
 
     setDoc(sessionRef, data)
       .then(() => {
-        setSessionActive(true);
         toast({ title: "Session Started", description: "Students can now join your live class." });
       })
       .catch((e) => {
@@ -101,7 +99,6 @@ export default function LiveClassroom({ courseId, isInstructor }: LiveClassroomP
   const endSession = () => {
     if (!sessionRef) return;
     deleteDoc(sessionRef).then(() => {
-      setSessionActive(false);
       if (stream) {
         stream.getTracks().forEach(track => track.stop());
       }
@@ -159,7 +156,7 @@ export default function LiveClassroom({ courseId, isInstructor }: LiveClassroomP
               ref={videoRef} 
               className="w-full h-full object-cover" 
               autoPlay 
-              muted={isInstructor} // Instructors mute themselves to avoid feedback
+              muted={isInstructor} 
               playsInline 
             />
             
