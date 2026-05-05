@@ -1,4 +1,4 @@
-// Updated security rules for EduSpark
+// Updated security rules for EduSpark - Deployment Triggered
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
