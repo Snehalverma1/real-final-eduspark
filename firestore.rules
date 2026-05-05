@@ -12,11 +12,20 @@ service cloud.firestore {
     }
 
     function isOwner(userId) {
-      return request.auth.uid == userId;
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function getUserData() {
+      return get(/databases/$(database)/documents/userProfiles/$(request.auth.uid)).data;
     }
 
     function isAdmin() {
-      return isSignedIn() && get(/databases/$(database)/documents/userProfiles/$(request.auth.uid)).data.role == 'admin';
+      return isSignedIn() && getUserData().role == 'admin';
+    }
+
+    function isApprovedTeacher() {
+      let profile = getUserData();
+      return isSignedIn() && profile.role != 'student' && profile.applicationStatus == 'approved';
     }
 
     function docExists() {
@@ -28,13 +37,13 @@ service cloud.firestore {
     }
 
     function studentCanAccessCourse(courseData) {
-      let userProfile = get(/databases/$(database)/documents/userProfiles/$(request.auth.uid)).data;
+      let userProfile = getUserData();
       return userProfile.role == 'student' && userProfile.class == courseData.targetClass;
     }
 
     function isStudentInCourseClass(courseId) {
       let course = get(/databases/$(database)/documents/courses/$(courseId)).data;
-      let userProfile = get(/databases/$(database)/documents/userProfiles/$(request.auth.uid)).data;
+      let userProfile = getUserData();
       return userProfile.role == 'student' && userProfile.class == course.targetClass;
     }
 
@@ -83,18 +92,14 @@ service cloud.firestore {
     match /courses/{courseId} {
       allow get: if isSignedIn() && (isOwner(resource.data.instructorId) || isAdmin() || isEnrolled(courseId) || studentCanAccessCourse(resource.data));
       allow list: if true;
-      allow create: if isSignedIn() 
-                    && isOwner(request.resource.data.instructorId) 
-                    && request.resource.data.id == courseId
-                    && get(/databases/$(database)/documents/userProfiles/$(request.auth.uid)).data.role != 'student';
+      allow create: if isApprovedTeacher() && isOwner(request.resource.data.instructorId) && request.resource.data.id == courseId;
       allow update: if isSignedIn() && isOwner(resource.data.instructorId) && docExists() && isImmutableCourse();
       allow delete: if isSignedIn() && isOwner(resource.data.instructorId) && docExists();
 
       // Live Sessions Subcollection
       match /liveSessions/{sessionId} {
         allow read: if isSignedIn() && (isEnrolled(courseId) || isOwner(get(/databases/$(database)/documents/courses/$(courseId)).data.instructorId));
-        allow create, update: if isSignedIn() && isOwner(get(/databases/$(database)/documents/courses/$(courseId)).data.instructorId);
-        allow delete: if isSignedIn() && isOwner(get(/databases/$(database)/documents/courses/$(courseId)).data.instructorId);
+        allow create, update, delete: if isSignedIn() && isOwner(get(/databases/$(database)/documents/courses/$(courseId)).data.instructorId);
       }
     }
 
@@ -103,13 +108,11 @@ service cloud.firestore {
     // --------------------------------------------------------------------
     match /users/{userId} {
       match /draftCourses/{courseId} {
-        allow get, delete: if isOwner(userId) && docExists();
-        allow list: if isOwner(userId);
-        allow create: if isOwner(userId) 
+        allow get, delete, list: if isOwner(userId);
+        allow create: if isApprovedTeacher() && isOwner(userId) 
                        && request.resource.data.instructorId == userId 
                        && request.resource.data.id == courseId
-                       && request.resource.data.status == 'Draft'
-                       && get(/databases/$(database)/documents/userProfiles/$(request.auth.uid)).data.role != 'student';
+                       && request.resource.data.status == 'Draft';
         allow update: if isOwner(userId) && docExists() && isImmutableCourse();
       }
 
