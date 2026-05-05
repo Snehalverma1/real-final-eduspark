@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
@@ -69,7 +68,7 @@ export default function LiveClassroom({ courseId, isInstructor }: LiveClassroomP
         stream.getTracks().forEach(track => track.stop());
       }
     };
-  }, [isInstructor, toast]); // Toast added to deps as it comes from hook
+  }, [isInstructor, toast]);
 
   const startSession = () => {
     if (!sessionRef || !user) return;
@@ -121,7 +120,7 @@ export default function LiveClassroom({ courseId, isInstructor }: LiveClassroomP
   };
 
   if (loading) {
-    return <div className="flex items-center justify-center min-h-[400px]"><Loader2 className="animate-spin" /></div>;
+    return <div className="flex items-center justify-center min-h-[400px]"><Loader2 className="h-8 w-8 animate-spin" /></div>;
   }
 
   const isActive = sessionData?.status === 'active';
@@ -168,7 +167,7 @@ export default function LiveClassroom({ courseId, isInstructor }: LiveClassroomP
               </div>
             )}
 
-            {isInstructor && (
+            {isInstructor && isActive && (
               <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-2 bg-black/40 backdrop-blur-md p-2 rounded-full opacity-0 group-hover:opacity-100 transition-opacity">
                 <Button variant="ghost" size="icon" className="rounded-full text-white hover:bg-white/20" onClick={toggleAudio}>
                   {isAudioEnabled ? <Mic className="h-5 w-5" /> : <MicOff className="h-5 w-5 text-red-500" />}

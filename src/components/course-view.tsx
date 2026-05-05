@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useMemo, useEffect } from "react";
@@ -150,7 +149,7 @@ export default function CourseView({ course }: { course: Course }) {
       <main className="p-4 md:p-8">
         {isLive && (
           <Link href={`/courses/${course.id}/live`}>
-            <div className="mb-6 p-4 bg-red-500/10 border border-red-500/20 rounded-lg flex items-center justify-between animate-in fade-in slide-in-from-top-4">
+            <div className="mb-6 p-4 bg-red-500/10 border border-red-500/20 rounded-lg flex items-center justify-between animate-in fade-in slide-in-from-top-4 transition-all hover:bg-red-500/20 group">
               <div className="flex items-center gap-3">
                 <div className="relative">
                   <Radio className="h-5 w-5 text-red-500" />
@@ -164,7 +163,7 @@ export default function CourseView({ course }: { course: Course }) {
                   <p className="text-sm text-red-600/80">Join the teacher for a real-time interactive session.</p>
                 </div>
               </div>
-              <Button className="bg-red-600 hover:bg-red-700 text-white">Join Now</Button>
+              <Button className="bg-red-600 hover:bg-red-700 text-white shadow-lg group-hover:scale-105 transition-transform">Join Now</Button>
             </div>
           </Link>
         )}
