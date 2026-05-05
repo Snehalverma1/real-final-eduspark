@@ -1,14 +1,18 @@
+
 "use client";
 
-import { useState, useMemo, useEffect, useActionState } from "react";
-import type { Course, Lecture, Chapter } from "@/lib/data";
+import { useState, useMemo, useEffect } from "react";
+import type { Course, Lecture } from "@/lib/data";
 import { Progress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
-import { CheckCircle, Lock, Sparkles, BookOpen, VideoOff } from "lucide-react";
+import { CheckCircle, Lock, Sparkles, BookOpen, VideoOff, Radio } from "lucide-react";
 import { cn } from "@/lib/utils";
 import AiQaPanel from "./ai-qa-panel";
 import { ScrollArea } from "./ui/scroll-area";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
+import { useFirestore, useDoc, useMemoFirebase } from "@/firebase";
+import { doc } from "firebase/firestore";
+import Link from "next/link";
 
 function CourseSidebar({ course, progress, completedLectures, activeLecture, setActiveLecture }: { course: Course, progress: number, completedLectures: Set<string>, activeLecture: Lecture | null, setActiveLecture: (l: Lecture) => void }) {
     return (
@@ -39,7 +43,7 @@ function CourseSidebar({ course, progress, completedLectures, activeLecture, set
                                     {chapter.lectures.map((lecture) => {
                                         const isCompleted = completedLectures.has(lecture.id);
                                         const isActive = activeLecture?.id === lecture.id;
-                                        const isLocked = false; // Logic for locked lectures can be added here
+                                        const isLocked = false;
 
                                         return (
                                             <button
@@ -77,6 +81,15 @@ export default function CourseView({ course }: { course: Course }) {
   const [completedLectures, setCompletedLectures] = useState<Set<string>>(new Set());
   const [activeLecture, setActiveLecture] = useState<Lecture | null>(null);
   const [isQaPanelOpen, setIsQaPanelOpen] = useState(false);
+  const firestore = useFirestore();
+
+  const sessionRef = useMemoFirebase(() => {
+    if (!firestore || !course.id) return null;
+    return doc(firestore, 'courses', course.id, 'liveSessions', 'active_session');
+  }, [firestore, course.id]);
+
+  const { data: sessionData } = useDoc(sessionRef);
+  const isLive = sessionData?.status === 'active';
   
   const { totalLectures, firstLecture } = useMemo(() => {
     const lectures: Lecture[] = course.chapters.flatMap(c => c.lectures);
@@ -87,13 +100,10 @@ export default function CourseView({ course }: { course: Course }) {
   }, [course.chapters]);
   
   useEffect(() => {
-    // Set the first lecture as active when the component mounts or the course changes.
-    if (firstLecture) {
+    if (firstLecture && !activeLecture) {
       setActiveLecture(firstLecture);
-    } else {
-      setActiveLecture(null);
     }
-  }, [firstLecture]);
+  }, [firstLecture, activeLecture]);
 
   const progress = useMemo(() => {
     if (totalLectures === 0) return 0;
@@ -114,24 +124,16 @@ export default function CourseView({ course }: { course: Course }) {
 
   const getVideoEmbedUrl = (url: string): string => {
     if (!url) return "";
-
-    // Check for Vimeo
     const vimeoRegex = /vimeo\.com\/(\d+)/;
     const vimeoMatch = url.match(vimeoRegex);
     if (vimeoMatch && vimeoMatch[1]) {
-      // It's a standard Vimeo URL, convert it
       return `https://player.vimeo.com/video/${vimeoMatch[1]}?autoplay=1&title=0&byline=0&portrait=0`;
     }
-    
-    // Check for YouTube
     const youtubeRegex = /(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/ ]{11})/;
     const youtubeMatch = url.match(youtubeRegex);
     if (youtubeMatch && youtubeMatch[1]) {
-        // It's a standard youtube URL, convert it
         return `https://www.youtube.com/embed/${youtubeMatch[1]}`;
     }
-
-    // If it's already an embed URL (for either platform) or some other URL, return it as is.
     return url;
   };
 
@@ -146,6 +148,27 @@ export default function CourseView({ course }: { course: Course }) {
       />
 
       <main className="p-4 md:p-8">
+        {isLive && (
+          <Link href={`/courses/${course.id}/live`}>
+            <div className="mb-6 p-4 bg-red-500/10 border border-red-500/20 rounded-lg flex items-center justify-between animate-in fade-in slide-in-from-top-4">
+              <div className="flex items-center gap-3">
+                <div className="relative">
+                  <Radio className="h-5 w-5 text-red-500" />
+                  <span className="absolute -top-1 -right-1 flex h-3 w-3">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-3 w-3 bg-red-500"></span>
+                  </span>
+                </div>
+                <div>
+                  <p className="font-bold text-red-600">LIVE CLASS ONGOING</p>
+                  <p className="text-sm text-red-600/80">Join the teacher for a real-time interactive session.</p>
+                </div>
+              </div>
+              <Button className="bg-red-600 hover:bg-red-700 text-white">Join Now</Button>
+            </div>
+          </Link>
+        )}
+
         {!activeLecture ? (
             <div className="flex flex-col items-center justify-center h-full text-center">
                 <VideoOff className="h-16 w-16 text-muted-foreground" />
@@ -162,11 +185,18 @@ export default function CourseView({ course }: { course: Course }) {
                     <CheckCircle className={cn("mr-2 h-4 w-4", completedLectures.has(activeLecture.id) && "text-green-500")} />
                     {completedLectures.has(activeLecture.id) ? 'Marked as Complete' : 'Mark as Complete'}
                     </Button>
-                    {activeLecture.type === 'text' && (
-                    <Button onClick={() => setIsQaPanelOpen(true)}>
-                        <Sparkles className="mr-2 h-4 w-4" /> Ask AI
-                    </Button>
-                    )}
+                    <div className="flex gap-2">
+                      <Button asChild variant="secondary" className="bg-red-500/10 text-red-600 hover:bg-red-500/20 border-red-500/20">
+                        <Link href={`/courses/${course.id}/live`}>
+                          <Radio className="mr-2 h-4 w-4" /> Live Room
+                        </Link>
+                      </Button>
+                      {activeLecture.type === 'text' && (
+                        <Button onClick={() => setIsQaPanelOpen(true)}>
+                            <Sparkles className="mr-2 h-4 w-4" /> Ask AI
+                        </Button>
+                      )}
+                    </div>
                 </div>
                 
                 {activeLecture.type === 'video' ? (

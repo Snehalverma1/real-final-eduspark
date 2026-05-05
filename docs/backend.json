@@ -1,3 +1,4 @@
+
 {
   "entities": {
     "UserProfile": {
@@ -87,6 +88,23 @@
         "createdAt",
         "updatedAt"
       ]
+    },
+    "LiveSession": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "LiveSession",
+      "type": "object",
+      "description": "Represents an active live teaching session for a course.",
+      "properties": {
+        "id": { "type": "string" },
+        "courseId": { "type": "string" },
+        "instructorId": { "type": "string" },
+        "instructorName": { "type": "string" },
+        "title": { "type": "string" },
+        "status": { "type": "string", "enum": ["active", "ended"] },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "offer": { "type": "object", "description": "WebRTC SDP Offer" }
+      },
+      "required": ["id", "courseId", "instructorId", "status", "createdAt"]
     },
     "Category": {
       "$schema": "http://json-schema.org/draft-07/schema#",
@@ -335,12 +353,26 @@
           "schema": {
             "$ref": "#/backend/entities/UserProfile"
           },
-          "description": "Stores individual user profiles. The document ID (`userId`) is the Firebase Authentication UID. Authorization relies on `request.auth.uid` matching `userId` for write access. Public fields are readable by all. The 'id' field within the document must match the path's 'userId'.",
+          "description": "Stores individual user profiles.",
           "params": [
             {
               "name": "userId",
               "description": "The Firebase Authentication UID of the user."
             }
+          ]
+        }
+      },
+      {
+        "path": "/courses/{courseId}/liveSessions/{sessionId}",
+        "definition": {
+          "entityName": "LiveSession",
+          "schema": {
+            "$ref": "#/backend/entities/LiveSession"
+          },
+          "description": "Active live sessions for a course.",
+          "params": [
+            { "name": "courseId" },
+            { "name": "sessionId" }
           ]
         }
       },
@@ -351,7 +383,7 @@
           "schema": {
             "$ref": "#/backend/entities/Category"
           },
-          "description": "Public collection of course categories. Readable by all, only administrators (determined by `role` in UserProfile) can create, update, or delete categories. The 'id' field within the document must match the path's 'categoryId'.",
+          "description": "Public collection of course categories.",
           "params": [
             {
               "name": "categoryId",
@@ -367,7 +399,7 @@
           "schema": {
             "$ref": "#/backend/entities/Course"
           },
-          "description": "Stores courses with 'Published' or 'Archived' status. Readable by all authenticated users. Only the 'instructorId' specified in the document can update or delete the course. The 'instructorId' field is denormalized from the creator's UserProfile for authorization independence. The 'id' field within the document must match the path's 'courseId'.",
+          "description": "Stores courses with 'Published' or 'Archived' status.",
           "params": [
             {
               "name": "courseId",
@@ -383,7 +415,7 @@
           "schema": {
             "$ref": "#/backend/entities/Course"
           },
-          "description": "Stores courses in 'Draft' status, privately owned and editable by the instructor. The 'instructorId' in the path must match `request.auth.uid` and the document's 'instructorId' field for read/write access. The 'id' field within the document must match the path's 'courseId'. Documents in this collection must have 'status' as 'Draft'.",
+          "description": "Stores courses in 'Draft' status.",
           "params": [
             {
               "name": "instructorId",
@@ -403,7 +435,7 @@
           "schema": {
             "$ref": "#/backend/entities/Enrollment"
           },
-          "description": "Tracks a student's enrollment in a course. The document ID (`courseId`) represents the specific course enrollment for the `studentId`. Only the `studentId` can read/write their own enrollments, and `studentId` in the path must match `request.auth.uid`. Includes denormalized `courseInstructorId` for instructors to query enrollments for their courses without a `get()` call. The 'id' field within the document should match the path's 'courseId'. The 'studentId' field in the document must match the path's 'studentId'.",
+          "description": "Tracks a student's enrollment in a course.",
           "params": [
             {
               "name": "studentId",
@@ -411,12 +443,11 @@
             },
             {
               "name": "courseId",
-              "description": "Unique identifier for the course the student is enrolled in (used as the enrollment document ID)."
+              "description": "Unique identifier for the course the student is enrolled in."
             }
           ]
         }
       }
-    ],
-    "reasoning": "The Firestore data structure for EduSpark prioritizes secure, scalable, and debuggable authorization rules by strictly adhering to the core design principles. The foundational strategy is **Authorization Independence via Denormalization** to eliminate `get()` calls in security rules, ensuring atomic operations and simplifying rule logic.\n\n**Authorization Independence:**\n1.  **User Profiles and Roles:** User profiles (`/userProfiles/{userId}`) are directly path-based, meaning `request.auth.uid` directly identifies the owner for write operations. Global roles, such as administrators, are determined by the `role` field within the UserProfile document. This requires a `get()` call in security rules to check for admin privileges, which is an acceptable trade-off for role-based access control on non-list operations.\n2.  **Course Ownership & Status Segregation:** To handle different access patterns for course states, courses are segregated structurally. 'Published' or 'Archived' courses reside in `/courses/{courseId}`, where the `instructorId` is denormalized directly into the course document. This enables rules to verify `request.auth.uid == resource.data.instructorId` without `get()` calls. 'Draft' courses are kept private within `/users/{instructorId}/draftCourses/{courseId}`, leveraging path-based ownership (`request.auth.uid == instructorId`) and also denormalizing `instructorId` within the document for redundancy and clarity. This structural segregation simplifies rules by ensuring all documents in a given collection path share a homogeneous security posture.\n3.  **Course Content (Chapters & Lectures):** Course content, defined as chapters and lectures, is embedded as an array of objects directly within the `Course` document. This simplifies the data model for the initial creation and editing phase, especially for draft courses, as it allows the entire course structure to be managed within a single document. This avoids the complexity of managing nested subcollections during the draft phase and simplifies the security rules, as access to chapters and lectures is inherently controlled by the rules on the parent `Course` document.\n4.  **Student Enrollments and Progress:** Enrollments are designed using path-based ownership at `/users/{studentId}/enrollments/{courseId}`, where the `studentId` in the path matches `request.auth.uid`. Critically, the `courseId` is used as the document ID for the enrollment, allowing for efficient `exists(/users/$(request.auth.uid)/enrollments/$(courseId))` checks to verify if a student is enrolled in a particular course. When creating an enrollment, a rule will verify that the student's class matches the `targetClass` of the course, which requires a `get()` call but is acceptable on a write operation. Once enrolled, read access to the course content is granted based on this enrollment, avoiding repeated `get()` calls on read operations.\n\n**QAPs (Query as a Privilege) Support:**\n*   **Public Course Discovery:** The `/courses/{courseId}` collection allows for public `list` queries. Access to individual courses is then controlled at the read (`get`) level, ensuring students can only access courses for their class.\n*   **Instructor's Drafts:** The `/users/{instructorId}/draftCourses/{courseId}` collection allows an instructor to `list` their own draft courses by querying the path corresponding to their `uid`.\n*   **Student Enrollments:** The `/users/{studentId}/enrollments/{courseId}` collection allows a student to `list` their own enrollments efficiently. The denormalized `courseInstructorId` field within `Enrollment` documents allows instructors to query and `list` all enrollments for their specific courses across all students.\n*   **Categories:** The `/categories/{categoryId}` collection is publicly readable, supporting `list` operations for all users.\n\nBy embedding chapters/lectures and controlling enrollment, the security rules remain simple and performant for read operations, while ensuring students can only access content appropriate for their class."
+    ]
   }
 }

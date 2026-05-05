@@ -1,33 +1,4 @@
-/**
- * Firestore Security Rules for EduSpark
- *
- * Core Philosophy
- * This ruleset enforces a strict security model based on user roles (Admin, Instructor, Student)
- * and data ownership. It prioritizes performance and security by avoiding cross-document reads (get())
- * in rules wherever possible, instead relying on denormalized data for authorization checks.
- *
- * Data Structure
- * The data is organized to enforce security boundaries naturally:
- * - /userProfiles/{userId}: Each user controls their own profile document. The `role` field within this
- *   document is the source of truth for a user's privileges.
- * - /users/{userId}/: This is a private data tree for each user, containing their draft courses,
- *   enrollments, and lesson progress. Access is strictly limited to the user specified in the path.
- * - /courses/{courseId}: A top-level collection for publicly visible courses. Writes are
- *   restricted to the course's designated instructor. Reads are restricted to enrolled students
- *   or students of the correct class.
- * - /categories/{categoryId}: A public, read-only collection for course categories, which can only be
- *   managed by administrators.
- *
- * Key Security Decisions
- * - Default Deny: All paths are closed by default. Access is only granted through explicit allow rules.
- * - No User Enumeration: Listing users from the top-level /userProfiles collection is disallowed to protect user privacy.
- * - Course Content is Embedded: Chapters and Lectures are stored as arrays within the Course document
- *   to simplify creation and management, especially for drafts. Access is controlled via the parent Course.
- * - Enrollment-Based Access: Students gain access to course content by creating an Enrollment document.
- *   The creation of this enrollment is the gatekeeper, checking if the student belongs to the correct class.
- *   This avoids costly get() calls on every content read.
- *
- */
+
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
@@ -36,85 +7,62 @@ service cloud.firestore {
     // Helper Functions
     // --------------------------------------------------------------------
 
-    // Returns true if the user is authenticated.
     function isSignedIn() {
       return request.auth != null;
     }
 
-    // Returns true if the requester's UID matches the provided userId.
-    // This is the primary function for enforcing data ownership.
     function isOwner(userId) {
       return request.auth.uid == userId;
     }
 
-    // Returns true if the user is an administrator.
-    // Checks the `role` field in the user's profile document. This `get` call is
-    // acceptable as it's for authorization on non-list operations.
     function isAdmin() {
       return isSignedIn() && get(/databases/$(database)/documents/userProfiles/$(request.auth.uid)).data.role == 'admin';
     }
 
-    // Returns true if the document being accessed already exists.
-    // Used to protect against updates or deletes of non-existent documents.
     function docExists() {
       return resource != null;
     }
 
-    // Returns true if the current user is enrolled in the specified course.
-    // Checks for the existence of an enrollment document in the user's private space.
     function isEnrolled(courseId) {
       return isSignedIn() && exists(/databases/$(database)/documents/users/$(request.auth.uid)/enrollments/$(courseId));
     }
 
-    // Returns true if the user is a student and their class matches the course's target class.
-    // This performs a 'get' so it should only be used in rules for single-document reads/writes.
     function studentCanAccessCourse(courseData) {
       let userProfile = get(/databases/$(database)/documents/userProfiles/$(request.auth.uid)).data;
       return userProfile.role == 'student' && userProfile.class == courseData.targetClass;
     }
 
-    // Checks if a student is in the target class for a specific course.
-    // This function performs two 'get' operations, so it should only be used in rules
-    // for write operations (like create enrollment) to avoid performance issues on reads.
     function isStudentInCourseClass(courseId) {
       let course = get(/databases/$(database)/documents/courses/$(courseId)).data;
       let userProfile = get(/databases/$(database)/documents/userProfiles/$(request.auth.uid)).data;
       return userProfile.role == 'student' && userProfile.class == course.targetClass;
     }
 
-
-    // Validates that critical, immutable fields for a Course are not changed on update.
     function isImmutableCourse() {
       return request.resource.data.id == resource.data.id &&
              request.resource.data.instructorId == resource.data.instructorId;
     }
 
-    // Validates that critical, immutable fields for an Enrollment are not changed on update.
     function isImmutableEnrollment() {
         return request.resource.data.id == resource.data.id &&
                request.resource.data.studentId == resource.data.studentId;
     }
 
-
     // --------------------------------------------------------------------
     // User Data
     // --------------------------------------------------------------------
 
-    // Secures a user's own profile document.
-    // Path: /userProfiles/{userId}
     match /userProfiles/{userId} {
       allow get: if isSignedIn();
-      allow list: if isAdmin(); // Admins can list users to manage applications
+      allow list: if isAdmin();
       allow create: if isOwner(userId) && request.resource.data.id == userId;
       allow update: if (isOwner(userId) && docExists()
-                    // User can update their profile, but not their role or status
                     && request.resource.data.id == resource.data.id
-                    && request.resource.data.email == resource.data.email // email is immutable
-                    && request.resource.data.role == resource.data.role // role is immutable by user
-                    && request.resource.data.applicationStatus == resource.data.applicationStatus // status is immutable by user
-                    && request.resource.data.createdAt == resource.data.createdAt) // createdAt is immutable
+                    && request.resource.data.email == resource.data.email
+                    && request.resource.data.role == resource.data.role
+                    && request.resource.data.applicationStatus == resource.data.applicationStatus
+                    && request.resource.data.createdAt == resource.data.createdAt)
                  || (isAdmin() && docExists()
-                    // Admin can update profile, including role and status
                     && request.resource.data.id == resource.data.id
                     && request.resource.data.email == resource.data.email
                     && request.resource.data.createdAt == resource.data.createdAt);
@@ -125,8 +73,6 @@ service cloud.firestore {
     // Public Content
     // --------------------------------------------------------------------
 
-    // Public course categories. Readable by all, writable only by admins.
-    // Path: /categories/{categoryId}
     match /categories/{categoryId} {
       allow get, list: if true;
       allow create: if isAdmin() && request.resource.data.id == categoryId;
@@ -134,13 +80,8 @@ service cloud.firestore {
       allow delete: if isAdmin() && docExists();
     }
 
-    // Published courses. Readable by enrolled students or the instructor.
-    // Path: /courses/{courseId}
     match /courses/{courseId} {
-      // Students can only read a course if they are enrolled OR if the course is for their class.
-      // Instructors and Admins can always read.
       allow get: if isSignedIn() && (isOwner(resource.data.instructorId) || isAdmin() || isEnrolled(courseId) || studentCanAccessCourse(resource.data));
-      // Allow listing of courses so users can browse them, but 'get' is what protects the content.
       allow list: if true;
       allow create: if isSignedIn() 
                     && isOwner(request.resource.data.instructorId) 
@@ -148,41 +89,32 @@ service cloud.firestore {
                     && get(/databases/$(database)/documents/userProfiles/$(request.auth.uid)).data.role != 'student';
       allow update: if isSignedIn() && isOwner(resource.data.instructorId) && docExists() && isImmutableCourse();
       allow delete: if isSignedIn() && isOwner(resource.data.instructorId) && docExists();
-    }
 
+      // Live Sessions Subcollection
+      match /liveSessions/{sessionId} {
+        allow read: if isSignedIn() && (isEnrolled(courseId) || isOwner(get(/databases/$(database)/documents/courses/$(courseId)).data.instructorId));
+        allow create, update: if isSignedIn() && isOwner(get(/databases/$(database)/documents/courses/$(courseId)).data.instructorId);
+        allow delete: if isSignedIn() && isOwner(get(/databases/$(database)/documents/courses/$(courseId)).data.instructorId);
+      }
+    }
 
     // --------------------------------------------------------------------
     // User-Specific Private Data Tree
     // --------------------------------------------------------------------
     match /users/{userId} {
-
-      // Private draft courses owned by an instructor.
-      // Path: /users/{instructorId}/draftCourses/{courseId}
       match /draftCourses/{courseId} {
-        // Only the owner can read or delete their own drafts.
         allow get, delete: if isOwner(userId) && docExists();
         allow list: if isOwner(userId);
-        
-        // When creating, the user must be the owner and the instructorId in the
-        // document must match their own UID. The document ID must also match, and the status must be 'Draft'.
         allow create: if isOwner(userId) 
                        && request.resource.data.instructorId == userId 
                        && request.resource.data.id == courseId
                        && request.resource.data.status == 'Draft'
                        && get(/databases/$(database)/documents/userProfiles/$(request.auth.uid)).data.role != 'student';
-
-        // When updating, the owner can modify it, but cannot change the instructorId or id.
         allow update: if isOwner(userId) && docExists() && isImmutableCourse();
       }
 
-
-      // A student's enrollment record for a specific course.
-      // This is the gatekeeper for course access.
-      // Path: /users/{studentId}/enrollments/{courseId}
       match /enrollments/{courseId} {
         allow read, write: if isOwner(userId);
-        // On creation, verify the student belongs to the course's target class.
-        // This is the only place we need to do this expensive check.
         allow create: if isOwner(userId) && request.resource.data.studentId == userId && request.resource.data.id == courseId
                       && isStudentInCourseClass(courseId);
         allow update: if isOwner(userId) && docExists() && isImmutableEnrollment();
