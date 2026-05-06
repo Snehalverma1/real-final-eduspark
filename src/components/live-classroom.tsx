@@ -112,13 +112,6 @@ export default function LiveClassroom({ courseId, isInstructor }: LiveClassroomP
     setConnectionStatus('connecting');
 
     try {
-      await setDoc(sessionRef, {
-        status: 'active',
-        instructorId: user.uid,
-        instructorName: user.displayName || 'Instructor',
-        createdAt: serverTimestamp(),
-      });
-
       pc.current = new RTCPeerConnection(servers);
 
       localStream.getTracks().forEach((track) => {
@@ -148,7 +141,13 @@ export default function LiveClassroom({ courseId, isInstructor }: LiveClassroomP
         type: offerDescription.type,
       };
 
-      await updateDoc(sessionRef, { offer });
+      await setDoc(sessionRef, {
+        status: 'active',
+        instructorId: user.uid,
+        instructorName: user.displayName || 'Instructor',
+        offer,
+        createdAt: serverTimestamp(),
+      });
 
       onSnapshot(sessionRef, (snapshot) => {
         const data = snapshot.data();
@@ -182,7 +181,7 @@ export default function LiveClassroom({ courseId, isInstructor }: LiveClassroomP
   };
 
   const toggleScreenShare = async () => {
-    if (!isInstructor || !pc.current) return;
+    if (!isInstructor || !pc.current || !sessionRef) return;
 
     if (!isSharingScreen) {
       try {
@@ -197,9 +196,13 @@ export default function LiveClassroom({ courseId, isInstructor }: LiveClassroomP
 
         if (localScreenRef.current) localScreenRef.current.srcObject = stream;
         
+        // Re-negotiation
         const offerDescription = await pc.current.createOffer();
         await pc.current.setLocalDescription(offerDescription);
-        await updateDoc(sessionRef!, { offer: { sdp: offerDescription.sdp, type: offerDescription.type } });
+        await updateDoc(sessionRef, { 
+          offer: { sdp: offerDescription.sdp, type: offerDescription.type },
+          isSharingScreen: true 
+        });
 
       } catch (err) {
         console.error("Error sharing screen:", err);
@@ -209,10 +212,19 @@ export default function LiveClassroom({ courseId, isInstructor }: LiveClassroomP
     }
   };
 
-  const stopScreenShare = () => {
+  const stopScreenShare = async () => {
     screenStream?.getTracks().forEach(track => track.stop());
     setScreenStream(null);
     setIsSharingScreen(false);
+    
+    if (pc.current && sessionRef) {
+        const offerDescription = await pc.current.createOffer();
+        await pc.current.setLocalDescription(offerDescription);
+        await updateDoc(sessionRef, { 
+          offer: { sdp: offerDescription.sdp, type: offerDescription.type },
+          isSharingScreen: false 
+        });
+    }
   };
 
   const joinSession = async () => {
@@ -229,6 +241,8 @@ export default function LiveClassroom({ courseId, isInstructor }: LiveClassroomP
 
       pc.current.ontrack = (event) => {
         const stream = event.streams[0];
+        // Identify tracks. If we have multiple streams, usually index 0 is camera, index 1+ is screen.
+        // In a simpler way, assign to the first empty video ref.
         if (event.track.kind === 'video') {
             if (!remoteVideoRef.current?.srcObject) {
                 if (remoteVideoRef.current) remoteVideoRef.current.srcObject = stream;
@@ -253,6 +267,7 @@ export default function LiveClassroom({ courseId, isInstructor }: LiveClassroomP
         }
       };
 
+      // Set initial remote description
       await pc.current.setRemoteDescription(new RTCSessionDescription(sessionData.offer));
       processQueuedCandidates();
 
@@ -265,6 +280,17 @@ export default function LiveClassroom({ courseId, isInstructor }: LiveClassroomP
       };
 
       await updateDoc(sessionRef, { answer });
+
+      // Listen for re-negotiation offers
+      onSnapshot(sessionRef, async (snapshot) => {
+        const data = snapshot.data();
+        if (data?.offer && pc.current?.signalingState !== 'stable' && data.offer.sdp !== pc.current?.remoteDescription?.sdp) {
+            await pc.current?.setRemoteDescription(new RTCSessionDescription(data.offer));
+            const ans = await pc.current?.createAnswer();
+            await pc.current?.setLocalDescription(ans);
+            await updateDoc(sessionRef, { answer: { type: ans?.type, sdp: ans?.sdp } });
+        }
+      });
 
       onSnapshot(callerCandidatesCollection, (snapshot) => {
         snapshot.docChanges().forEach((change) => {
@@ -281,7 +307,6 @@ export default function LiveClassroom({ courseId, isInstructor }: LiveClassroomP
     } catch (err) {
       console.error('WebRTC Join Error:', err);
       setConnectionStatus('failed');
-      toast({ variant: "destructive", title: "Connection Failed", description: "Could not connect. Please try again." });
     } finally {
       setIsJoining(false);
     }
@@ -324,6 +349,7 @@ export default function LiveClassroom({ courseId, isInstructor }: LiveClassroomP
 
   const isActive = sessionData?.status === 'active';
   const hasOffer = !!sessionData?.offer;
+  const remoteSharingScreen = sessionData?.isSharingScreen || false;
 
   return (
     <div className="space-y-6">
@@ -390,7 +416,7 @@ export default function LiveClassroom({ courseId, isInstructor }: LiveClassroomP
               <>
                 <video 
                   ref={remoteScreenRef} 
-                  className={cn("w-full h-full object-contain bg-black", (!isActive || connectionStatus === 'idle' || !isSharingScreen) && "hidden")} 
+                  className={cn("w-full h-full object-contain bg-black", (!isActive || connectionStatus === 'idle' || !remoteSharingScreen) && "hidden")} 
                   autoPlay 
                   playsInline
                 />
@@ -399,7 +425,7 @@ export default function LiveClassroom({ courseId, isInstructor }: LiveClassroomP
                   className={cn(
                     "w-full h-full object-cover", 
                     (!isActive || connectionStatus === 'idle') && "hidden",
-                    isSharingScreen && "absolute bottom-4 right-4 w-48 h-32 rounded-lg border-2 border-white/20 z-20 shadow-xl"
+                    remoteSharingScreen && "absolute bottom-4 right-4 w-48 h-32 rounded-lg border-2 border-white/20 z-20 shadow-xl"
                   )} 
                   autoPlay 
                   playsInline
@@ -420,7 +446,6 @@ export default function LiveClassroom({ courseId, isInstructor }: LiveClassroomP
                   <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/90 text-white">
                     <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
                     <p className="font-semibold text-lg">Establishing Secure Connection...</p>
-                    <p className="text-xs text-muted-foreground">Optimizing P2P route via Firestore</p>
                   </div>
                 )}
 
@@ -486,19 +511,12 @@ export default function LiveClassroom({ courseId, isInstructor }: LiveClassroomP
             <CardContent className="space-y-4">
               <div className="p-4 rounded-xl bg-background border shadow-sm">
                 <p className="text-[10px] uppercase font-bold text-muted-foreground mb-1">State</p>
-                <p className="font-bold text-sm capitalize">{connectionStatus === 'connected' ? (isSharingScreen ? 'Sharing Screen + Face' : 'Streaming Live') : connectionStatus}</p>
+                <p className="font-bold text-sm capitalize">{connectionStatus === 'connected' ? (remoteSharingScreen || isSharingScreen ? 'Sharing Screen + Face' : 'Streaming Live') : connectionStatus}</p>
               </div>
               <div className="p-4 rounded-xl bg-background border shadow-sm">
                 <p className="text-[10px] uppercase font-bold text-muted-foreground mb-1">Your Role</p>
                 <p className="font-bold text-sm">{isInstructor ? 'Instructor (Host)' : 'Student (Viewer)'}</p>
               </div>
-              {isInstructor && isSharingScreen && (
-                 <Alert className="bg-accent/10 border-accent/20">
-                    <Monitor className="h-4 w-4 text-accent" />
-                    <AlertTitle className="text-accent text-xs">Screen Sharing Active</AlertTitle>
-                    <AlertDescription className="text-[10px]">Students can see your entire screen and your camera overlay.</AlertDescription>
-                 </Alert>
-              )}
             </CardContent>
           </Card>
         </div>
