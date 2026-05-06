@@ -46,7 +46,7 @@ export default function LiveClassroom({ courseId, isInstructor }: LiveClassroomP
   const [isVideoEnabled, setIsVideoEnabled] = useState(true);
   const [isScreenSharing, setIsScreenSharing] = useState(false);
   
-  const [isRemoteMuted, setIsRemoteMuted] = useState(true);
+  const [isRemoteMuted, setIsRemoteMuted] = useState(false);
   const [isInitialLoading, setIsInitialLoading] = useState(true);
   const [isJoining, setIsJoining] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState<'idle' | 'connecting' | 'connected' | 'failed' | 'offline'>('idle');
@@ -149,8 +149,8 @@ export default function LiveClassroom({ courseId, isInstructor }: LiveClassroomP
 
       onSnapshot(sessionRef, (snapshot) => {
         const data = snapshot.data();
-        if (!pc.current?.currentRemoteDescription && data?.answer) {
-          pc.current?.setRemoteDescription(new RTCSessionDescription(data.answer)).then(processQueuedCandidates);
+        if (pc.current && data?.answer && !pc.current.currentRemoteDescription) {
+          pc.current.setRemoteDescription(new RTCSessionDescription(data.answer)).then(processQueuedCandidates);
         }
       });
 
@@ -186,13 +186,23 @@ export default function LiveClassroom({ courseId, isInstructor }: LiveClassroomP
       pc.current = new RTCPeerConnection(servers);
 
       pc.current.ontrack = (event) => {
-        const stream = event.streams[0];
-        // We might have multiple streams if screen sharing is active
-        // Typically the first stream is the camera
-        if (remoteVideoRef.current && !remoteVideoRef.current.srcObject) {
-          remoteVideoRef.current.srcObject = stream;
-        } else if (remoteScreenRef.current && !remoteScreenRef.current.srcObject) {
-          remoteScreenRef.current.srcObject = stream;
+        const [stream] = event.streams;
+        const track = event.track;
+
+        if (track.kind === 'video') {
+            // Map tracks to correct video elements
+            // The first video stream we get is typically the camera
+            if (!remoteVideoRef.current?.srcObject) {
+                remoteVideoRef.current!.srcObject = stream;
+            } else if (remoteVideoRef.current.srcObject !== stream && !remoteScreenRef.current?.srcObject) {
+                // If it's a different stream ID, it's likely the screen share
+                remoteScreenRef.current!.srcObject = stream;
+            }
+        } else if (track.kind === 'audio') {
+            // Audio track usually comes with the first stream
+            if (remoteVideoRef.current && !remoteVideoRef.current.srcObject) {
+                remoteVideoRef.current.srcObject = stream;
+            }
         }
       };
 
@@ -211,13 +221,24 @@ export default function LiveClassroom({ courseId, isInstructor }: LiveClassroomP
         }
       };
 
-      await pc.current.setRemoteDescription(new RTCSessionDescription(sessionData.offer));
-      processQueuedCandidates();
-
-      const answerDescription = await pc.current.createAnswer();
-      await pc.current.setLocalDescription(answerDescription);
-
-      await updateDoc(sessionRef, { answer: { type: answerDescription.type, sdp: answerDescription.sdp } });
+      // Listen for re-negotiation offers
+      onSnapshot(sessionRef, async (snapshot) => {
+        const data = snapshot.data();
+        if (pc.current && data?.offer) {
+          const remoteDesc = new RTCSessionDescription(data.offer);
+          // Only set remote description if it's new or different
+          if (!pc.current.remoteDescription || pc.current.remoteDescription.sdp !== remoteDesc.sdp) {
+              await pc.current.setRemoteDescription(remoteDesc);
+              processQueuedCandidates();
+              
+              if (remoteDesc.type === 'offer') {
+                const answer = await pc.current.createAnswer();
+                await pc.current.setLocalDescription(answer);
+                await updateDoc(sessionRef, { answer: { type: answer.type, sdp: answer.sdp } });
+              }
+          }
+        }
+      });
 
       onSnapshot(callerCandidatesCollection, (snapshot) => {
         snapshot.docChanges().forEach((change) => {
@@ -265,35 +286,49 @@ export default function LiveClassroom({ courseId, isInstructor }: LiveClassroomP
   };
 
   const toggleScreenShare = async () => {
-    if (!isInstructor || !pc.current) return;
+    if (!isInstructor || !pc.current || !sessionRef) return;
 
     if (isScreenSharing) {
+      // Find and remove screen tracks
+      const senders = pc.current.getSenders();
+      const tracks = screenStream?.getTracks() || [];
+      senders.forEach(sender => {
+          if (sender.track && tracks.includes(sender.track)) {
+              pc.current?.removeTrack(sender);
+          }
+      });
+      
       screenStream?.getTracks().forEach(track => track.stop());
       setScreenStream(null);
       setIsScreenSharing(false);
-      // In a real app, we'd remove the track from PC and re-negotiate
-      // For MVP, we toggle UI local visibility
+      
+      // Re-negotiate
+      const offer = await pc.current.createOffer();
+      await pc.current.setLocalDescription(offer);
+      await updateDoc(sessionRef, { offer: { sdp: offer.sdp, type: offer.type } });
     } else {
       try {
         const stream = await navigator.mediaDevices.getDisplayMedia({ video: true });
         setScreenStream(stream);
         setIsScreenSharing(true);
+        
         stream.getTracks()[0].onended = () => {
-          setIsScreenSharing(false);
-          setScreenStream(null);
+          if (isScreenSharing) toggleScreenShare();
         };
+
         // Add to PeerConnection
         stream.getTracks().forEach(track => {
             pc.current?.addTrack(track, stream);
         });
         
-        // Re-negotiation would happen here for a production app
+        // Re-negotiate
         const offer = await pc.current.createOffer();
         await pc.current.setLocalDescription(offer);
-        await updateDoc(sessionRef!, { offer: { sdp: offer.sdp, type: offer.type } });
+        await updateDoc(sessionRef, { offer: { sdp: offer.sdp, type: offer.type } });
 
       } catch (err) {
         console.error("Screen share error:", err);
+        setIsScreenSharing(false);
       }
     }
   };
@@ -360,7 +395,7 @@ export default function LiveClassroom({ courseId, isInstructor }: LiveClassroomP
               <div className="w-full h-full relative">
                  <video 
                     ref={localVideoRef} 
-                    className={cn("w-full h-full object-cover", !isVideoEnabled && "hidden", isScreenSharing && "absolute bottom-4 right-4 w-64 h-36 border-2 border-white rounded-lg z-10")} 
+                    className={cn("w-full h-full object-cover bg-neutral-900", !isVideoEnabled && "hidden", isScreenSharing && "absolute bottom-4 right-4 w-64 h-36 border-2 border-white rounded-lg z-10 shadow-xl")} 
                     autoPlay 
                     muted 
                     playsInline 
@@ -379,8 +414,7 @@ export default function LiveClassroom({ courseId, isInstructor }: LiveClassroomP
 
             {/* STUDENT VIEW */}
             {!isInstructor && (
-              <>
-                <div className="w-full h-full relative">
+              <div className="w-full h-full relative">
                     <video 
                         ref={remoteVideoRef} 
                         className={cn("w-full h-full object-cover", (!isActive || connectionStatus === 'idle') && "hidden")} 
@@ -395,7 +429,6 @@ export default function LiveClassroom({ courseId, isInstructor }: LiveClassroomP
                         playsInline
                         muted={isRemoteMuted}
                     />
-                </div>
                 
                 {isActive && connectionStatus === 'idle' && (
                    <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/80 backdrop-blur-sm text-white p-6 text-center">
@@ -424,7 +457,7 @@ export default function LiveClassroom({ courseId, isInstructor }: LiveClassroomP
                     </Button>
                   </div>
                 )}
-              </>
+              </div>
             )}
 
             {!isActive && (
