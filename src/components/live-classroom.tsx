@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, Video, VideoOff, Mic, MicOff, LogOut, Users, Play, Volume2, VolumeX, Monitor, MonitorOff, RefreshCw } from 'lucide-react';
+import { Loader2, Video, VideoOff, Mic, MicOff, LogOut, Users, Play, Volume2, VolumeX, RefreshCw } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 
@@ -32,9 +32,7 @@ export default function LiveClassroom({ courseId, isInstructor }: LiveClassroomP
   const { toast } = useToast();
   
   const localVideoRef = useRef<HTMLVideoElement>(null);
-  const localScreenRef = useRef<HTMLVideoElement>(null);
   const remoteVideoRef = useRef<HTMLVideoElement>(null);
-  const remoteScreenRef = useRef<HTMLVideoElement>(null);
   
   const pc = useRef<RTCPeerConnection | null>(null);
   const isStarted = useRef(false);
@@ -42,11 +40,9 @@ export default function LiveClassroom({ courseId, isInstructor }: LiveClassroomP
   
   const [hasCameraPermission, setHasCameraPermission] = useState<boolean | null>(null);
   const [localStream, setLocalStream] = useState<MediaStream | null>(null);
-  const [screenStream, setScreenStream] = useState<MediaStream | null>(null);
   
   const [isAudioEnabled, setIsAudioEnabled] = useState(true);
   const [isVideoEnabled, setIsVideoEnabled] = useState(true);
-  const [isSharingScreen, setIsSharingScreen] = useState(false);
   
   const [isRemoteMuted, setIsRemoteMuted] = useState(false);
   const [isInitialLoading, setIsInitialLoading] = useState(true);
@@ -61,13 +57,14 @@ export default function LiveClassroom({ courseId, isInstructor }: LiveClassroomP
 
   const { data: sessionData, isLoading: isSessionLoading } = useDoc(sessionRef);
 
+  // Initialize media for instructor
   useEffect(() => {
     if (!isInstructor) {
       setIsInitialLoading(false);
       return;
     }
 
-    const initializeMedia = async () => {
+    const getCameraPermission = async () => {
       try {
         const stream = await navigator.mediaDevices.getUserMedia({ 
           video: { width: 1280, height: 720 }, 
@@ -75,9 +72,6 @@ export default function LiveClassroom({ courseId, isInstructor }: LiveClassroomP
         });
         setLocalStream(stream);
         setHasCameraPermission(true);
-        if (localVideoRef.current) {
-          localVideoRef.current.srcObject = stream;
-        }
       } catch (error) {
         console.error('Error accessing media:', error);
         setHasCameraPermission(false);
@@ -86,14 +80,20 @@ export default function LiveClassroom({ courseId, isInstructor }: LiveClassroomP
       }
     };
 
-    initializeMedia();
+    getCameraPermission();
 
     return () => {
       localStream?.getTracks().forEach(track => track.stop());
-      screenStream?.getTracks().forEach(track => track.stop());
       pc.current?.close();
     };
   }, [isInstructor]);
+
+  // Attach local stream to video ref once both are available
+  useEffect(() => {
+    if (isInstructor && localVideoRef.current && localStream) {
+      localVideoRef.current.srcObject = localStream;
+    }
+  }, [localStream, isInitialLoading, isInstructor]);
 
   const processQueuedCandidates = () => {
     if (!pc.current || !pc.current.remoteDescription) return;
@@ -184,12 +184,8 @@ export default function LiveClassroom({ courseId, isInstructor }: LiveClassroomP
 
       pc.current.ontrack = (event) => {
         const stream = event.streams[0];
-        if (event.track.kind === 'video') {
-            if (!remoteVideoRef.current?.srcObject) {
-                if (remoteVideoRef.current) remoteVideoRef.current.srcObject = stream;
-            } else if (remoteVideoRef.current.srcObject !== stream) {
-                if (remoteScreenRef.current) remoteScreenRef.current.srcObject = stream;
-            }
+        if (remoteVideoRef.current) {
+          remoteVideoRef.current.srcObject = stream;
         }
       };
 
@@ -388,9 +384,9 @@ export default function LiveClassroom({ courseId, isInstructor }: LiveClassroomP
           </div>
 
           {isInstructor && hasCameraPermission === false && (
-            <Alert variant="destructive">
+            <Alert variant="destructive" className="mt-4">
               <AlertTitle>Camera Access Required</AlertTitle>
-              <AlertDescription>Please enable camera permissions in your browser to broadcast your class.</AlertDescription>
+              <AlertDescription>Please allow camera access to use this feature.</AlertDescription>
             </Alert>
           )}
         </div>
