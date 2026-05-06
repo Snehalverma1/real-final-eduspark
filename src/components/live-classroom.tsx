@@ -87,13 +87,14 @@ export default function LiveClassroom({ courseId, isInstructor }: LiveClassroomP
     };
   }, [isInstructor]);
 
-  // Bind streams to video elements
+  // Bind local stream to video element
   useEffect(() => {
     if (localVideoRef.current && localStream) {
       localVideoRef.current.srcObject = localStream;
     }
   }, [localStream]);
 
+  // Bind remote stream to video element
   useEffect(() => {
     if (remoteVideoRef.current && remoteStream) {
       remoteVideoRef.current.srcObject = remoteStream;
@@ -107,9 +108,11 @@ export default function LiveClassroom({ courseId, isInstructor }: LiveClassroomP
     
     peer.onconnectionstatechange = () => {
       setConnectionStatus(peer.connectionState as any);
+      console.log('Connection state change:', peer.connectionState);
     };
 
     peer.ontrack = (event) => {
+      console.log('Received remote track:', event.streams[0]);
       if (event.streams && event.streams[0]) {
         setRemoteStream(event.streams[0]);
       }
@@ -127,7 +130,10 @@ export default function LiveClassroom({ courseId, isInstructor }: LiveClassroomP
 
     const callerCandidates = collection(sessionRef, 'callerCandidates');
     peer.onicecandidate = (event) => {
-      if (event.candidate) addDoc(callerCandidates, event.candidate.toJSON());
+      if (event.candidate) {
+        console.log('New ICE candidate (caller):', event.candidate);
+        addDoc(callerCandidates, event.candidate.toJSON());
+      }
     };
 
     const offerDescription = await peer.createOffer();
@@ -143,23 +149,26 @@ export default function LiveClassroom({ courseId, isInstructor }: LiveClassroomP
 
     await setDoc(sessionRef, sessionPayload);
 
-    // Watch for answer
-    const unsubscribe = onSnapshot(sessionRef, (snapshot) => {
+    // Watch for student's answer
+    const unsubscribe = onSnapshot(sessionRef, async (snapshot) => {
       const data = snapshot.data();
       if (data?.answer && !peer.currentRemoteDescription) {
+        console.log('Received student answer, setting remote description...');
         const answer = new RTCSessionDescription(data.answer);
-        peer.setRemoteDescription(answer);
-      }
-    });
+        await peer.setRemoteDescription(answer);
 
-    // Watch for callee candidates
-    const unsubscribeCandidates = onSnapshot(collection(sessionRef, 'calleeCandidates'), (snapshot) => {
-      snapshot.docChanges().forEach((change) => {
-        if (change.type === 'added') {
-          const candidate = new RTCIceCandidate(change.doc.data());
-          peer.addIceCandidate(candidate).catch(e => console.error("Error adding candidate", e));
-        }
-      });
+        // NOW it is safe to start listening for callee candidates
+        const calleeCandidates = collection(sessionRef, 'calleeCandidates');
+        onSnapshot(calleeCandidates, (snapshot) => {
+          snapshot.docChanges().forEach((change) => {
+            if (change.type === 'added') {
+              console.log('Adding ICE candidate (callee):', change.doc.data());
+              const candidate = new RTCIceCandidate(change.doc.data());
+              peer.addIceCandidate(candidate).catch(e => console.error("Error adding candidate", e));
+            }
+          });
+        });
+      }
     });
 
     toast({ title: 'Class Started', description: 'Students can now join your room.' });
@@ -168,11 +177,15 @@ export default function LiveClassroom({ courseId, isInstructor }: LiveClassroomP
   const joinSession = async () => {
     if (!sessionRef || !sessionData?.offer || isInstructor) return;
 
+    console.log('Joining session, setting up peer connection...');
     const peer = setupPeerConnection();
     const calleeCandidates = collection(sessionRef, 'calleeCandidates');
     
     peer.onicecandidate = (event) => {
-      if (event.candidate) addDoc(calleeCandidates, event.candidate.toJSON());
+      if (event.candidate) {
+        console.log('New ICE candidate (callee):', event.candidate);
+        addDoc(calleeCandidates, event.candidate.toJSON());
+      }
     };
 
     const offer = new RTCSessionDescription(sessionData.offer);
@@ -185,10 +198,12 @@ export default function LiveClassroom({ courseId, isInstructor }: LiveClassroomP
       answer: { sdp: answerDescription.sdp, type: answerDescription.type }
     });
 
-    // Listen for caller candidates ONLY after remote description is set
-    const unsubscribe = onSnapshot(collection(sessionRef, 'callerCandidates'), (snapshot) => {
+    // NOW it is safe to start listening for caller candidates
+    const callerCandidates = collection(sessionRef, 'callerCandidates');
+    onSnapshot(callerCandidates, (snapshot) => {
       snapshot.docChanges().forEach((change) => {
         if (change.type === 'added') {
+          console.log('Adding ICE candidate (caller):', change.doc.data());
           const candidate = new RTCIceCandidate(change.doc.data());
           peer.addIceCandidate(candidate).catch(e => console.error("Error adding candidate", e));
         }
@@ -266,7 +281,7 @@ export default function LiveClassroom({ courseId, isInstructor }: LiveClassroomP
              </div>
           )}
 
-          {/* Video Players - Always rendered to prevent ref loss */}
+          {/* Instructor Video */}
           <video 
             ref={localVideoRef} 
             className={cn("w-full h-full object-cover", (!isInstructor || !isVideoEnabled || !hasCameraPermission) && "hidden")} 
@@ -275,13 +290,42 @@ export default function LiveClassroom({ courseId, isInstructor }: LiveClassroomP
             playsInline 
           />
           
+          {/* Student/Remote Video */}
           <video 
             ref={remoteVideoRef} 
             className={cn("w-full h-full object-cover", (isInstructor || !remoteStream) && "hidden")} 
             autoPlay 
-            muted={!isInstructor} /* Start muted for autoplay compliance */
+            muted={true} /* Muted by default to allow browser autoplay */
             playsInline 
           />
+
+          {/* Instructor Controls Overlay */}
+          {isInstructor && isActive && hasCameraPermission && (
+            <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-3 bg-black/40 backdrop-blur-md p-2 rounded-full border border-white/20">
+              <Button variant="ghost" size="icon" className={cn("rounded-full hover:bg-white/20 text-white", !isAudioEnabled && "text-red-500")} onClick={toggleAudio}>
+                {isAudioEnabled ? <Mic className="h-5 w-5" /> : <MicOff className="h-5 w-5" />}
+              </Button>
+              <Button variant="ghost" size="icon" className={cn("rounded-full hover:bg-white/20 text-white", !isVideoEnabled && "text-red-500")} onClick={toggleVideo}>
+                {isVideoEnabled ? <Video className="h-5 w-5" /> : <VideoOff className="h-5 w-5" />}
+              </Button>
+            </div>
+          )}
+
+          {/* Student "Unmute" Helper */}
+          {!isInstructor && remoteStream && (
+             <Button 
+               size="sm" 
+               variant="secondary" 
+               className="absolute top-4 right-4 bg-black/50 text-white hover:bg-black/70 border-white/20"
+               onClick={() => {
+                 if (remoteVideoRef.current) {
+                   remoteVideoRef.current.muted = false;
+                 }
+               }}
+             >
+               <Mic className="h-4 w-4 mr-2" /> Unmute Teacher
+             </Button>
+          )}
 
           {/* Status Overlays */}
           {isInstructor && hasCameraPermission === false && !isInitialLoading && (
@@ -299,25 +343,6 @@ export default function LiveClassroom({ courseId, isInstructor }: LiveClassroomP
               <VideoOff className="h-12 w-12 mb-3 opacity-50" />
               <p className="font-medium px-4 text-center">The classroom is currently closed.</p>
               <p className="text-sm opacity-70">Wait for the teacher to go live.</p>
-            </div>
-          )}
-
-          {isInstructor && hasCameraPermission && !isVideoEnabled && (
-            <div className="absolute inset-0 flex flex-col items-center justify-center bg-neutral-800 text-white">
-              <VideoOff className="h-12 w-12 opacity-50" />
-              <p className="mt-2">Camera Disabled</p>
-            </div>
-          )}
-
-          {/* Instructor UI Controls */}
-          {isInstructor && isActive && hasCameraPermission && (
-            <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-3 bg-black/40 backdrop-blur-md p-2 rounded-full border border-white/20">
-              <Button variant="ghost" size="icon" className={cn("rounded-full hover:bg-white/20 text-white", !isAudioEnabled && "text-red-500")} onClick={toggleAudio}>
-                {isAudioEnabled ? <Mic className="h-5 w-5" /> : <MicOff className="h-5 w-5" />}
-              </Button>
-              <Button variant="ghost" size="icon" className={cn("rounded-full hover:bg-white/20 text-white", !isVideoEnabled && "text-red-500")} onClick={toggleVideo}>
-                {isVideoEnabled ? <Video className="h-5 w-5" /> : <VideoOff className="h-5 w-5" />}
-              </Button>
             </div>
           )}
         </div>
