@@ -35,8 +35,8 @@ export default function LiveClassroom({ courseId, isInstructor }: LiveClassroomP
   const remoteScreenRef = useRef<HTMLVideoElement>(null);
   
   const pc = useRef<RTCPeerConnection | null>(null);
-  const isStarted = useRef(false);
   const candidateQueue = useRef<RTCIceCandidateInit[]>([]);
+  const isBroadcasting = useRef(false);
   
   const [hasCameraPermission, setHasCameraPermission] = useState<boolean | null>(null);
   const [localStream, setLocalStream] = useState<MediaStream | null>(null);
@@ -109,9 +109,9 @@ export default function LiveClassroom({ courseId, isInstructor }: LiveClassroomP
   };
 
   const startSession = async () => {
-    if (!sessionRef || !localStream || !firestore || !user || isStarted.current) return;
+    if (!sessionRef || !localStream || !firestore || !user || isBroadcasting.current) return;
 
-    isStarted.current = true;
+    isBroadcasting.current = true;
     setConnectionStatus('connecting');
 
     try {
@@ -147,6 +147,7 @@ export default function LiveClassroom({ courseId, isInstructor }: LiveClassroomP
         createdAt: serverTimestamp(),
       });
 
+      // Listen for student's answer
       onSnapshot(sessionRef, (snapshot) => {
         const data = snapshot.data();
         if (pc.current && data?.answer && pc.current.signalingState === 'have-local-offer') {
@@ -154,6 +155,7 @@ export default function LiveClassroom({ courseId, isInstructor }: LiveClassroomP
         }
       });
 
+      // Listen for student's candidates
       onSnapshot(calleeCandidatesCollection, (snapshot) => {
         snapshot.docChanges().forEach((change) => {
           if (change.type === 'added') {
@@ -171,7 +173,7 @@ export default function LiveClassroom({ courseId, isInstructor }: LiveClassroomP
     } catch (err) {
       console.error("Start Session Error:", err);
       setConnectionStatus('failed');
-      isStarted.current = false;
+      isBroadcasting.current = false;
     }
   };
 
@@ -185,15 +187,17 @@ export default function LiveClassroom({ courseId, isInstructor }: LiveClassroomP
     try {
       pc.current = new RTCPeerConnection(servers);
 
+      // Student setup for receiving tracks
       pc.current.ontrack = (event) => {
         const [stream] = event.streams;
         const track = event.track;
 
         if (track.kind === 'video') {
-            // Map tracks based on stream identification
-            if (!remoteVideoRef.current?.srcObject || (remoteVideoRef.current.srcObject as MediaStream).id === stream.id) {
+            // Logic to determine if it's camera or screen
+            // If the teacher has two streams, the screen sharing one usually has a different ID
+            if (!remoteVideoRef.current?.srcObject) {
               remoteVideoRef.current!.srcObject = stream;
-            } else if (remoteScreenRef.current) {
+            } else if (remoteScreenRef.current && (remoteVideoRef.current.srcObject as MediaStream).id !== stream.id) {
               remoteScreenRef.current.srcObject = stream;
             }
         } else if (track.kind === 'audio') {
@@ -218,12 +222,13 @@ export default function LiveClassroom({ courseId, isInstructor }: LiveClassroomP
         }
       };
 
-      // Handle Offers (including re-negotiation)
+      // Listen for Offer (initial and re-negotiation)
       onSnapshot(sessionRef, async (snapshot) => {
         const data = snapshot.data();
         if (pc.current && data?.offer && data.offer.type === 'offer') {
           const remoteDesc = new RTCSessionDescription(data.offer);
-          // Check if we need to process this offer
+          
+          // Only process if it's a new offer or we are ready
           if (pc.current.signalingState !== 'stable' || !pc.current.remoteDescription || pc.current.remoteDescription.sdp !== remoteDesc.sdp) {
               await pc.current.setRemoteDescription(remoteDesc);
               processQueuedCandidates();
@@ -235,6 +240,7 @@ export default function LiveClassroom({ courseId, isInstructor }: LiveClassroomP
         }
       });
 
+      // Listen for caller candidates
       onSnapshot(callerCandidatesCollection, (snapshot) => {
         snapshot.docChanges().forEach((change) => {
           if (change.type === 'added') {
@@ -247,6 +253,7 @@ export default function LiveClassroom({ courseId, isInstructor }: LiveClassroomP
           }
         });
       });
+
     } catch (err) {
       console.error('WebRTC Join Error:', err);
       setConnectionStatus('failed');
@@ -260,7 +267,7 @@ export default function LiveClassroom({ courseId, isInstructor }: LiveClassroomP
     deleteDoc(sessionRef).then(() => {
       pc.current?.close();
       pc.current = null;
-      isStarted.current = false;
+      isBroadcasting.current = false;
       setConnectionStatus('idle');
       toast({ title: "Session Ended", description: "Broadcast stopped." });
     });
@@ -297,10 +304,10 @@ export default function LiveClassroom({ courseId, isInstructor }: LiveClassroomP
       setScreenStream(null);
       setIsScreenSharing(false);
       
-      // Re-negotiate
+      // Trigger Re-negotiation
       const offer = await pc.current.createOffer();
       await pc.current.setLocalDescription(offer);
-      await updateDoc(sessionRef, { offer: { sdp: offer.sdp, type: offer.type } });
+      await updateDoc(sessionRef, { offer: { sdp: offer.sdp, type: offer.type }, answer: null });
     } else {
       try {
         const stream = await navigator.mediaDevices.getDisplayMedia({ video: true });
@@ -316,10 +323,10 @@ export default function LiveClassroom({ courseId, isInstructor }: LiveClassroomP
             pc.current?.addTrack(track, stream);
         });
         
-        // Re-negotiate
+        // Trigger Re-negotiation
         const offer = await pc.current.createOffer();
         await pc.current.setLocalDescription(offer);
-        await updateDoc(sessionRef, { offer: { sdp: offer.sdp, type: offer.type } });
+        await updateDoc(sessionRef, { offer: { sdp: offer.sdp, type: offer.type }, answer: null });
 
       } catch (err) {
         console.error("Screen share error:", err);
@@ -418,14 +425,14 @@ export default function LiveClassroom({ courseId, isInstructor }: LiveClassroomP
               <div className="w-full h-full relative">
                     <video 
                         ref={remoteVideoRef} 
-                        className={cn("w-full h-full object-cover", (!isActive || connectionStatus === 'idle') && "hidden")} 
+                        className={cn("w-full h-full object-cover", (!isActive || connectionStatus === 'idle') && "hidden", isScreenSharing && "absolute bottom-4 right-4 w-64 h-36 border-2 border-white rounded-lg z-10 shadow-xl")} 
                         autoPlay 
                         playsInline
                         muted={isRemoteMuted}
                     />
                     <video 
                         ref={remoteScreenRef}
-                        className="absolute inset-0 w-full h-full object-contain bg-black hidden [&:not([srcObject=null])]:block"
+                        className="w-full h-full object-contain bg-black hidden [&:not([srcObject=null])]:block"
                         autoPlay
                         playsInline
                         muted={isRemoteMuted}
