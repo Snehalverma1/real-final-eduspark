@@ -1,7 +1,7 @@
+
 import type {NextConfig} from 'next';
 
 const nextConfig: NextConfig = {
-  /* config options here */
   typescript: {
     ignoreBuildErrors: true,
   },
@@ -26,12 +26,6 @@ const nextConfig: NextConfig = {
         pathname: '/**',
       },
     ],
-  },
-  webpack: (config, { isServer }) => {
-    if (!isServer) {
-      config.devServer = { ...config.devServer, hot: { websocketProtocol: 'ws' } };
-    }
-    return config;
   },
 };
 
