@@ -49,7 +49,7 @@ export default function LiveClassroom({ courseId, isInstructor }: LiveClassroomP
 
   const { data: sessionData, isLoading: isSessionLoading } = useDoc(sessionRef);
 
-  // Initialize media for instructor
+  // 1. Initialize media for instructor
   useEffect(() => {
     if (!isInstructor) {
       setIsInitialLoading(false);
@@ -61,10 +61,6 @@ export default function LiveClassroom({ courseId, isInstructor }: LiveClassroomP
         const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
         setLocalStream(stream);
         setHasCameraPermission(true);
-
-        if (localVideoRef.current) {
-          localVideoRef.current.srcObject = stream;
-        }
       } catch (error) {
         console.error('Error accessing camera:', error);
         setHasCameraPermission(false);
@@ -90,12 +86,12 @@ export default function LiveClassroom({ courseId, isInstructor }: LiveClassroomP
     };
   }, [isInstructor]);
 
-  // Handle stream attachment for students when session becomes active
+  // 2. Attach local stream to video element whenever it's available
   useEffect(() => {
-    if (!isInstructor && remoteVideoRef.current && connectionStatus === 'connected') {
-        // Peer connection ontrack will handle setting the srcObject
+    if (localVideoRef.current && localStream) {
+      localVideoRef.current.srcObject = localStream;
     }
-  }, [isInstructor, connectionStatus]);
+  }, [localStream]);
 
   const setupPeerConnection = () => {
     const peer = new RTCPeerConnection(servers);
@@ -255,25 +251,26 @@ export default function LiveClassroom({ courseId, isInstructor }: LiveClassroomP
       <div className="grid lg:grid-cols-[1fr_300px] gap-6">
         <div className="relative aspect-video bg-neutral-900 rounded-xl overflow-hidden border-2 shadow-xl flex flex-col items-center justify-center">
           
-          {isInstructor ? (
-            <video 
-              ref={localVideoRef} 
-              className={cn("w-full h-full object-cover", (!isVideoEnabled || !hasCameraPermission) && "hidden")} 
-              autoPlay 
-              muted 
-              playsInline 
-            />
-          ) : (
+          {/* Always render video tags to avoid ref race conditions */}
+          <video 
+            ref={localVideoRef} 
+            className={cn("w-full h-full object-cover", (!isInstructor || !isVideoEnabled || !hasCameraPermission) && "hidden")} 
+            autoPlay 
+            muted 
+            playsInline 
+          />
+          
+          {!isInstructor && (
             <video 
               ref={remoteVideoRef} 
-              className="w-full h-full object-cover" 
+              className={cn("w-full h-full object-cover", !isActive && "hidden")} 
               autoPlay 
               muted={false}
               playsInline 
             />
           )}
 
-          {isInstructor && !hasCameraPermission && (
+          {isInstructor && hasCameraPermission === false && (
              <Alert variant="destructive" className="max-w-md mx-4">
                 <AlertCircle className="h-4 w-4" />
                 <AlertTitle>Camera Access Required</AlertTitle>
