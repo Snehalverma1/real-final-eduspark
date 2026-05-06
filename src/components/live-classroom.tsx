@@ -6,9 +6,10 @@ import { doc, setDoc, deleteDoc, serverTimestamp, collection, addDoc, onSnapshot
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, Video, VideoOff, Mic, MicOff, LogOut, Users, Play } from 'lucide-react';
+import { Loader2, Video, VideoOff, Mic, MicOff, LogOut, Users, Play, AlertCircle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 interface LiveClassroomProps {
   courseId: string;
@@ -34,6 +35,7 @@ export default function LiveClassroom({ courseId, isInstructor }: LiveClassroomP
   
   const pc = useRef<RTCPeerConnection | null>(null);
   const [localStream, setLocalStream] = useState<MediaStream | null>(null);
+  const [hasCameraPermission, setHasCameraPermission] = useState<boolean | null>(null);
   const [isAudioEnabled, setIsAudioEnabled] = useState(true);
   const [isVideoEnabled, setIsVideoEnabled] = useState(true);
   const [connectionStatus, setConnectionStatus] = useState<'idle' | 'connecting' | 'connected' | 'failed' | 'disconnected'>('idle');
@@ -54,28 +56,46 @@ export default function LiveClassroom({ courseId, isInstructor }: LiveClassroomP
       return;
     }
 
-    const initMedia = async () => {
+    const getCameraPermission = async () => {
       try {
         const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
         setLocalStream(stream);
+        setHasCameraPermission(true);
+
         if (localVideoRef.current) {
           localVideoRef.current.srcObject = stream;
         }
       } catch (error) {
-        console.error('Media Access Error:', error);
-        toast({ variant: 'destructive', title: 'Camera Error', description: 'Please allow camera access.' });
+        console.error('Error accessing camera:', error);
+        setHasCameraPermission(false);
+        toast({
+          variant: 'destructive',
+          title: 'Camera Access Denied',
+          description: 'Please enable camera permissions in your browser settings to use this app.',
+        });
       } finally {
         setIsInitialLoading(false);
       }
     };
 
-    initMedia();
+    getCameraPermission();
 
     return () => {
-      localStream?.getTracks().forEach(track => track.stop());
-      pc.current?.close();
+      if (localStream) {
+        localStream.getTracks().forEach(track => track.stop());
+      }
+      if (pc.current) {
+        pc.current.close();
+      }
     };
   }, [isInstructor]);
+
+  // Handle stream attachment for students when session becomes active
+  useEffect(() => {
+    if (!isInstructor && remoteVideoRef.current && connectionStatus === 'connected') {
+        // Peer connection ontrack will handle setting the srcObject
+    }
+  }, [isInstructor, connectionStatus]);
 
   const setupPeerConnection = () => {
     const peer = new RTCPeerConnection(servers);
@@ -218,7 +238,7 @@ export default function LiveClassroom({ courseId, isInstructor }: LiveClassroomP
                 <LogOut className="mr-2 h-4 w-4" /> End
               </Button>
             ) : (
-              <Button onClick={startSession} className="bg-red-600 hover:bg-red-700 text-white">
+              <Button onClick={startSession} disabled={!hasCameraPermission} className="bg-red-600 hover:bg-red-700 text-white">
                 <Video className="mr-2 h-4 w-4" /> Start Broadcast
               </Button>
             )
@@ -233,11 +253,12 @@ export default function LiveClassroom({ courseId, isInstructor }: LiveClassroomP
       </div>
 
       <div className="grid lg:grid-cols-[1fr_300px] gap-6">
-        <div className="relative aspect-video bg-neutral-900 rounded-xl overflow-hidden border-2 shadow-xl">
+        <div className="relative aspect-video bg-neutral-900 rounded-xl overflow-hidden border-2 shadow-xl flex flex-col items-center justify-center">
+          
           {isInstructor ? (
             <video 
               ref={localVideoRef} 
-              className={cn("w-full h-full object-cover", !isVideoEnabled && "hidden")} 
+              className={cn("w-full h-full object-cover", (!isVideoEnabled || !hasCameraPermission) && "hidden")} 
               autoPlay 
               muted 
               playsInline 
@@ -247,18 +268,29 @@ export default function LiveClassroom({ courseId, isInstructor }: LiveClassroomP
               ref={remoteVideoRef} 
               className="w-full h-full object-cover" 
               autoPlay 
+              muted={false}
               playsInline 
             />
+          )}
+
+          {isInstructor && !hasCameraPermission && (
+             <Alert variant="destructive" className="max-w-md mx-4">
+                <AlertCircle className="h-4 w-4" />
+                <AlertTitle>Camera Access Required</AlertTitle>
+                <AlertDescription>
+                  Please allow camera access to use the live teaching feature. Check your browser settings if you've previously denied access.
+                </AlertDescription>
+             </Alert>
           )}
 
           {!isActive && !isInstructor && (
             <div className="absolute inset-0 flex flex-col items-center justify-center text-white bg-black/60">
               <VideoOff className="h-12 w-12 mb-3 opacity-50" />
-              <p className="font-medium">The instructor hasn't started the session yet.</p>
+              <p className="font-medium px-4 text-center">The instructor hasn't started the session yet.</p>
             </div>
           )}
 
-          {isInstructor && !isVideoEnabled && (
+          {isInstructor && hasCameraPermission && !isVideoEnabled && (
             <div className="absolute inset-0 flex flex-col items-center justify-center bg-neutral-800 text-white">
               <VideoOff className="h-12 w-12 opacity-50" />
               <p className="mt-2">Camera Off</p>
@@ -266,12 +298,12 @@ export default function LiveClassroom({ courseId, isInstructor }: LiveClassroomP
           )}
 
           {/* Instructor Controls */}
-          {isInstructor && isActive && (
-            <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-3 bg-black/20 backdrop-blur-md p-2 rounded-full border border-white/20">
-              <Button variant="ghost" size="icon" className={cn("rounded-full", !isAudioEnabled && "text-red-500")} onClick={toggleAudio}>
+          {isInstructor && isActive && hasCameraPermission && (
+            <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-3 bg-black/40 backdrop-blur-md p-2 rounded-full border border-white/20">
+              <Button variant="ghost" size="icon" className={cn("rounded-full hover:bg-white/20 text-white", !isAudioEnabled && "text-red-500")} onClick={toggleAudio}>
                 {isAudioEnabled ? <Mic className="h-5 w-5" /> : <MicOff className="h-5 w-5" />}
               </Button>
-              <Button variant="ghost" size="icon" className={cn("rounded-full", !isVideoEnabled && "text-red-500")} onClick={toggleVideo}>
+              <Button variant="ghost" size="icon" className={cn("rounded-full hover:bg-white/20 text-white", !isVideoEnabled && "text-red-500")} onClick={toggleVideo}>
                 {isVideoEnabled ? <Video className="h-5 w-5" /> : <VideoOff className="h-5 w-5" />}
               </Button>
             </div>
@@ -282,13 +314,15 @@ export default function LiveClassroom({ courseId, isInstructor }: LiveClassroomP
           <CardHeader className="pb-2">
             <CardTitle className="text-sm flex items-center gap-2">
               <Users className="h-4 w-4 text-primary" />
-              Status
+              Session Info
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
             <div className="text-xs uppercase font-bold text-muted-foreground">Connection</div>
-            <div className="text-sm font-semibold capitalize">{connectionStatus}</div>
-            <div className="text-xs uppercase font-bold text-muted-foreground mt-4">Role</div>
+            <div className="text-sm font-semibold capitalize">
+               {connectionStatus === 'idle' ? (isActive ? 'Ready to Join' : 'Offline') : connectionStatus}
+            </div>
+            <div className="text-xs uppercase font-bold text-muted-foreground mt-4">Your Role</div>
             <div className="text-sm font-semibold">{isInstructor ? 'Instructor' : 'Student'}</div>
           </CardContent>
         </Card>
