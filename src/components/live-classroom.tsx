@@ -38,6 +38,7 @@ export default function LiveClassroom({ courseId, isInstructor }: LiveClassroomP
   
   const pc = useRef<RTCPeerConnection | null>(null);
   const isStarted = useRef(false);
+  const candidateQueue = useRef<RTCIceCandidateInit[]>([]);
   
   const [hasCameraPermission, setHasCameraPermission] = useState<boolean | null>(null);
   const [localStream, setLocalStream] = useState<MediaStream | null>(null);
@@ -92,6 +93,16 @@ export default function LiveClassroom({ courseId, isInstructor }: LiveClassroomP
     };
   }, [isInstructor]);
 
+  const processQueuedCandidates = () => {
+    if (!pc.current || !pc.current.remoteDescription) return;
+    while (candidateQueue.current.length > 0) {
+      const candidate = candidateQueue.current.shift();
+      if (candidate) {
+        pc.current.addIceCandidate(new RTCIceCandidate(candidate)).catch(e => console.error("Queued ICE error", e));
+      }
+    }
+  };
+
   const startSession = async () => {
     if (!sessionRef || !localStream || !firestore || !user || isStarted.current) {
         return;
@@ -143,16 +154,20 @@ export default function LiveClassroom({ courseId, isInstructor }: LiveClassroomP
         const data = snapshot.data();
         if (!pc.current?.currentRemoteDescription && data?.answer) {
           const answerDescription = new RTCSessionDescription(data.answer);
-          pc.current?.setRemoteDescription(answerDescription);
+          pc.current?.setRemoteDescription(answerDescription).then(() => {
+            processQueuedCandidates();
+          });
         }
       });
 
       onSnapshot(calleeCandidatesCollection, (snapshot) => {
         snapshot.docChanges().forEach((change) => {
           if (change.type === 'added') {
-            const data = change.doc.data();
+            const data = change.doc.data() as RTCIceCandidateInit;
             if (pc.current?.remoteDescription) {
-              pc.current?.addIceCandidate(new RTCIceCandidate(data)).catch(e => console.error("ICE error", e));
+              pc.current.addIceCandidate(new RTCIceCandidate(data)).catch(e => console.error("ICE error", e));
+            } else {
+              candidateQueue.current.push(data);
             }
           }
         });
@@ -182,7 +197,6 @@ export default function LiveClassroom({ courseId, isInstructor }: LiveClassroomP
 
         if (localScreenRef.current) localScreenRef.current.srcObject = stream;
         
-        // Renegotiate offer after adding new tracks
         const offerDescription = await pc.current.createOffer();
         await pc.current.setLocalDescription(offerDescription);
         await updateDoc(sessionRef!, { offer: { sdp: offerDescription.sdp, type: offerDescription.type } });
@@ -199,7 +213,6 @@ export default function LiveClassroom({ courseId, isInstructor }: LiveClassroomP
     screenStream?.getTracks().forEach(track => track.stop());
     setScreenStream(null);
     setIsSharingScreen(false);
-    // Note: Track removal logic for renegotiation would go here in a complex app
   };
 
   const joinSession = async () => {
@@ -209,15 +222,14 @@ export default function LiveClassroom({ courseId, isInstructor }: LiveClassroomP
 
     setIsJoining(true);
     setConnectionStatus('connecting');
+    candidateQueue.current = [];
     
     try {
       pc.current = new RTCPeerConnection(servers);
 
       pc.current.ontrack = (event) => {
         const stream = event.streams[0];
-        // If we have multiple streams, the second one is usually the screen
         if (event.track.kind === 'video') {
-            // Very basic heuristic for prototype: first video is camera, second is screen
             if (!remoteVideoRef.current?.srcObject) {
                 if (remoteVideoRef.current) remoteVideoRef.current.srcObject = stream;
             } else if (remoteVideoRef.current.srcObject !== stream) {
@@ -242,6 +254,8 @@ export default function LiveClassroom({ courseId, isInstructor }: LiveClassroomP
       };
 
       await pc.current.setRemoteDescription(new RTCSessionDescription(sessionData.offer));
+      processQueuedCandidates();
+
       const answerDescription = await pc.current.createAnswer();
       await pc.current.setLocalDescription(answerDescription);
 
@@ -255,8 +269,12 @@ export default function LiveClassroom({ courseId, isInstructor }: LiveClassroomP
       onSnapshot(callerCandidatesCollection, (snapshot) => {
         snapshot.docChanges().forEach((change) => {
           if (change.type === 'added') {
-            const candidateData = change.doc.data();
-            pc.current?.addIceCandidate(new RTCIceCandidate(candidateData)).catch(e => console.error("ICE error", e));
+            const candidateData = change.doc.data() as RTCIceCandidateInit;
+            if (pc.current?.remoteDescription) {
+              pc.current.addIceCandidate(new RTCIceCandidate(candidateData)).catch(e => console.error("ICE error", e));
+            } else {
+              candidateQueue.current.push(candidateData);
+            }
           }
         });
       });
@@ -347,7 +365,6 @@ export default function LiveClassroom({ courseId, isInstructor }: LiveClassroomP
         <div className="space-y-4">
           <div className="relative aspect-video bg-neutral-950 rounded-2xl overflow-hidden border-4 border-muted shadow-2xl group/classroom">
             
-            {/* INSTRUCTOR VIEW */}
             {isInstructor && (
               <>
                 <video 
@@ -369,10 +386,8 @@ export default function LiveClassroom({ courseId, isInstructor }: LiveClassroomP
               </>
             )}
 
-            {/* STUDENT VIEW */}
             {!isInstructor && (
               <>
-                {/* Main Content (Camera or Screen) */}
                 <video 
                   ref={remoteScreenRef} 
                   className={cn("w-full h-full object-contain bg-black", (!isActive || connectionStatus === 'idle' || !isSharingScreen) && "hidden")} 
@@ -405,6 +420,7 @@ export default function LiveClassroom({ courseId, isInstructor }: LiveClassroomP
                   <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/90 text-white">
                     <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
                     <p className="font-semibold text-lg">Establishing Secure Connection...</p>
+                    <p className="text-xs text-muted-foreground">Optimizing P2P route via Firestore</p>
                   </div>
                 )}
 
@@ -430,7 +446,6 @@ export default function LiveClassroom({ courseId, isInstructor }: LiveClassroomP
               </div>
             )}
 
-            {/* CONTROLS (INSTRUCTOR ONLY) */}
             {isInstructor && isActive && (
               <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex items-center gap-4 bg-black/40 backdrop-blur-xl p-4 rounded-full border border-white/20 shadow-2xl transition-opacity opacity-0 group-hover/classroom:opacity-100">
                 <Button variant="ghost" size="icon" className={cn("rounded-full h-12 w-12 bg-white/10 hover:bg-white/20 text-white", !isAudioEnabled && "text-red-500 bg-red-500/20")} onClick={toggleAudio}>
@@ -491,4 +506,3 @@ export default function LiveClassroom({ courseId, isInstructor }: LiveClassroomP
     </div>
   );
 }
-
