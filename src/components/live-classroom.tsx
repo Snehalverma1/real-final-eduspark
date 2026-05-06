@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useUser, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
-import { doc, setDoc, deleteDoc, serverTimestamp, collection, addDoc, onSnapshot, getDoc, updateDoc } from 'firebase/firestore';
+import { doc, setDoc, deleteDoc, serverTimestamp, collection, addDoc, onSnapshot, updateDoc } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -149,7 +149,12 @@ export default function LiveClassroom({ courseId, isInstructor }: LiveClassroomP
 
   // Join Session (Student/Callee)
   const joinSession = async () => {
-    if (!sessionRef || !firestore || isInstructor || isJoining) return;
+    if (!sessionRef || !firestore || isInstructor || isJoining || !sessionData?.offer) {
+      if (!sessionData?.offer) {
+        toast({ variant: "destructive", title: "Error", description: "Broadcast data is still initializing. Please try again in a moment." });
+      }
+      return;
+    }
 
     setIsJoining(true);
     setConnectionStatus('connecting');
@@ -177,17 +182,8 @@ export default function LiveClassroom({ courseId, isInstructor }: LiveClassroomP
         }
       };
 
-      const sessionSnapshot = await getDoc(sessionRef);
-      const data = sessionSnapshot.data();
-
-      if (!data || !data.offer) {
-        toast({ variant: "destructive", title: "Error", description: "No active broadcast found." });
-        setConnectionStatus('offline');
-        return;
-      }
-
-      // 1. Set Remote Description (Offer)
-      await pc.current.setRemoteDescription(new RTCSessionDescription(data.offer));
+      // 1. Set Remote Description using the offer from sessionData (synced via useDoc)
+      await pc.current.setRemoteDescription(new RTCSessionDescription(sessionData.offer));
       
       // 2. Create Answer
       const answerDescription = await pc.current.createAnswer();
@@ -213,6 +209,7 @@ export default function LiveClassroom({ courseId, isInstructor }: LiveClassroomP
     } catch (err) {
       console.error('WebRTC Join Error:', err);
       setConnectionStatus('failed');
+      toast({ variant: "destructive", title: "Connection Failed", description: "Could not connect to the instructor. Please refresh and try again." });
     } finally {
       setIsJoining(false);
     }
@@ -252,6 +249,7 @@ export default function LiveClassroom({ courseId, isInstructor }: LiveClassroomP
   }
 
   const isActive = sessionData?.status === 'active';
+  const hasOffer = !!sessionData?.offer;
 
   return (
     <div className="space-y-6">
@@ -279,9 +277,10 @@ export default function LiveClassroom({ courseId, isInstructor }: LiveClassroomP
               </Button>
             )
           ) : (
-            isActive && connectionStatus === 'idle' && (
-              <Button onClick={joinSession} className="bg-green-600 hover:bg-green-700 text-white shadow-lg">
-                <Play className="mr-2 h-4 w-4" /> Join Live Stream
+            isActive && hasOffer && connectionStatus === 'idle' && (
+              <Button onClick={joinSession} disabled={isJoining} className="bg-green-600 hover:bg-green-700 text-white shadow-lg">
+                {isJoining ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Play className="mr-2 h-4 w-4" />}
+                Join Live Stream
               </Button>
             )
           )}
@@ -316,7 +315,9 @@ export default function LiveClassroom({ courseId, isInstructor }: LiveClassroomP
                    <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/80 backdrop-blur-sm text-white p-6 text-center">
                     <Video className="h-16 w-16 mb-4 text-primary opacity-50" />
                     <h3 className="text-xl font-bold">The class is live!</h3>
-                    <p className="text-muted-foreground mb-6 max-w-xs">Click the button above to start receiving the video feed.</p>
+                    <p className="text-muted-foreground mb-6 max-w-xs">
+                      {hasOffer ? "Click the button above to start receiving the video feed." : "Waiting for instructor signal..."}
+                    </p>
                    </div>
                 )}
 
