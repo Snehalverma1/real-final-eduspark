@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
@@ -7,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, Video, VideoOff, Mic, MicOff, LogOut, Users, Sparkles, Play } from 'lucide-react';
+import { Loader2, Video, VideoOff, Mic, MicOff, LogOut, Users, Play, Volume2, VolumeX } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 
@@ -33,11 +34,13 @@ export default function LiveClassroom({ courseId, isInstructor }: LiveClassroomP
   const localVideoRef = useRef<HTMLVideoElement>(null);
   const remoteVideoRef = useRef<HTMLVideoElement>(null);
   const pc = useRef<RTCPeerConnection | null>(null);
+  const isStarted = useRef(false);
   
   const [hasCameraPermission, setHasCameraPermission] = useState<boolean | null>(null);
   const [localStream, setLocalStream] = useState<MediaStream | null>(null);
   const [isAudioEnabled, setIsAudioEnabled] = useState(true);
   const [isVideoEnabled, setIsVideoEnabled] = useState(true);
+  const [isRemoteMuted, setIsRemoteMuted] = useState(true);
   const [isInitialLoading, setIsInitialLoading] = useState(true);
   const [isJoining, setIsJoining] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState<'idle' | 'connecting' | 'connected' | 'failed' | 'offline'>('idle');
@@ -82,11 +85,11 @@ export default function LiveClassroom({ courseId, isInstructor }: LiveClassroomP
   }, [isInstructor]);
 
   const startSession = async () => {
-    if (!sessionRef || !localStream || !firestore || !user) {
-        toast({ variant: "destructive", title: "Error", description: "Media stream or Firestore not ready." });
+    if (!sessionRef || !localStream || !firestore || !user || isStarted.current) {
         return;
     }
 
+    isStarted.current = true;
     setConnectionStatus('connecting');
     pc.current = new RTCPeerConnection(servers);
 
@@ -211,6 +214,7 @@ export default function LiveClassroom({ courseId, isInstructor }: LiveClassroomP
     deleteDoc(sessionRef).then(() => {
       pc.current?.close();
       pc.current = null;
+      isStarted.current = false;
       setConnectionStatus('idle');
       toast({ title: "Session Ended", description: "Broadcast stopped." });
     });
@@ -295,9 +299,10 @@ export default function LiveClassroom({ courseId, isInstructor }: LiveClassroomP
               <>
                 <video 
                   ref={remoteVideoRef} 
-                  className={cn("w-full h-full object-cover", (connectionStatus !== 'connected' || !isActive) && "hidden")} 
+                  className={cn("w-full h-full object-cover", (!isActive || connectionStatus === 'idle') && "hidden")} 
                   autoPlay 
-                  playsInline 
+                  playsInline
+                  muted={isRemoteMuted}
                 />
                 
                 {isActive && connectionStatus === 'idle' && (
@@ -313,7 +318,21 @@ export default function LiveClassroom({ courseId, isInstructor }: LiveClassroomP
                 {isActive && connectionStatus === 'connecting' && (
                   <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/90 text-white">
                     <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
-                    <p className="font-semibold">Establishing Connection...</p>
+                    <p className="font-semibold text-lg">Establishing Secure Connection...</p>
+                    <p className="text-sm text-muted-foreground mt-2">Connecting to instructor's broadcast...</p>
+                  </div>
+                )}
+
+                {isActive && connectionStatus === 'connected' && (
+                  <div className="absolute bottom-6 right-6 z-10">
+                    <Button 
+                      variant="secondary" 
+                      size="icon" 
+                      className="rounded-full bg-black/50 hover:bg-black/70 text-white backdrop-blur-md"
+                      onClick={() => setIsRemoteMuted(!isRemoteMuted)}
+                    >
+                      {isRemoteMuted ? <VolumeX className="h-5 w-5" /> : <Volume2 className="h-5 w-5" />}
+                    </Button>
                   </div>
                 )}
               </>
@@ -357,13 +376,19 @@ export default function LiveClassroom({ courseId, isInstructor }: LiveClassroomP
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="p-4 rounded-xl bg-background border shadow-sm">
-                <p className="text-[10px] uppercase font-bold text-muted-foreground mb-1">Status</p>
-                <p className="font-bold text-sm capitalize">{connectionStatus === 'connected' ? 'Streaming Active' : connectionStatus}</p>
+                <p className="text-[10px] uppercase font-bold text-muted-foreground mb-1">Connection State</p>
+                <p className="font-bold text-sm capitalize">{connectionStatus === 'connected' ? 'Streaming Live' : connectionStatus}</p>
               </div>
               <div className="p-4 rounded-xl bg-background border shadow-sm">
-                <p className="text-[10px] uppercase font-bold text-muted-foreground mb-1">Peer Role</p>
-                <p className="font-bold text-sm">{isInstructor ? 'Host (Caller)' : 'Attendee (Callee)'}</p>
+                <p className="text-[10px] uppercase font-bold text-muted-foreground mb-1">Your Role</p>
+                <p className="font-bold text-sm">{isInstructor ? 'Instructor (Source)' : 'Student (Viewer)'}</p>
               </div>
+              {isActive && (
+                <div className="flex items-center gap-2 p-2 px-3 bg-primary/5 rounded-lg border border-primary/10">
+                  <div className="h-2 w-2 rounded-full bg-primary animate-ping" />
+                  <span className="text-xs font-semibold text-primary">Live Data Feed Active</span>
+                </div>
+              )}
             </CardContent>
           </Card>
         </div>
