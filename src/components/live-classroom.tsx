@@ -91,66 +91,73 @@ export default function LiveClassroom({ courseId, isInstructor }: LiveClassroomP
 
     isStarted.current = true;
     setConnectionStatus('connecting');
-    pc.current = new RTCPeerConnection(servers);
 
-    localStream.getTracks().forEach((track) => {
-      pc.current?.addTrack(track, localStream);
-    });
+    try {
+      // 1. Create the session doc immediately so students see the "Live" state
+      await setDoc(sessionRef, {
+        status: 'active',
+        instructorId: user.uid,
+        instructorName: user.displayName || 'Instructor',
+        createdAt: serverTimestamp(),
+      });
 
-    const callerCandidatesCollection = collection(sessionRef, 'callerCandidates');
-    const calleeCandidatesCollection = collection(sessionRef, 'calleeCandidates');
+      pc.current = new RTCPeerConnection(servers);
 
-    pc.current.onicecandidate = (event) => {
-      if (event.candidate) {
-        addDoc(callerCandidatesCollection, event.candidate.toJSON());
-      }
-    };
+      localStream.getTracks().forEach((track) => {
+        pc.current?.addTrack(track, localStream);
+      });
 
-    pc.current.onconnectionstatechange = () => {
-      const state = pc.current?.connectionState;
-      if (state === 'connected') setConnectionStatus('connected');
-      if (state === 'failed' || state === 'disconnected') setConnectionStatus('failed');
-    };
+      const callerCandidatesCollection = collection(sessionRef, 'callerCandidates');
+      const calleeCandidatesCollection = collection(sessionRef, 'calleeCandidates');
 
-    const offerDescription = await pc.current.createOffer();
-    await pc.current.setLocalDescription(offerDescription);
+      pc.current.onicecandidate = (event) => {
+        if (event.candidate) {
+          addDoc(callerCandidatesCollection, event.candidate.toJSON());
+        }
+      };
 
-    const offer = {
-      sdp: offerDescription.sdp,
-      type: offerDescription.type,
-    };
+      pc.current.onconnectionstatechange = () => {
+        const state = pc.current?.connectionState;
+        if (state === 'connected') setConnectionStatus('connected');
+        if (state === 'failed' || state === 'disconnected') setConnectionStatus('failed');
+      };
 
-    const sessionInitData = {
-      offer,
-      status: 'active',
-      instructorId: user.uid,
-      instructorName: user.displayName || 'Instructor',
-      createdAt: serverTimestamp(),
-    };
+      const offerDescription = await pc.current.createOffer();
+      await pc.current.setLocalDescription(offerDescription);
 
-    await setDoc(sessionRef, sessionInitData);
+      const offer = {
+        sdp: offerDescription.sdp,
+        type: offerDescription.type,
+      };
 
-    onSnapshot(sessionRef, (snapshot) => {
-      const data = snapshot.data();
-      if (!pc.current?.currentRemoteDescription && data?.answer) {
-        const answerDescription = new RTCSessionDescription(data.answer);
-        pc.current?.setRemoteDescription(answerDescription);
-      }
-    });
+      // 2. Update with the offer as soon as it's ready
+      await updateDoc(sessionRef, { offer });
 
-    onSnapshot(calleeCandidatesCollection, (snapshot) => {
-      snapshot.docChanges().forEach((change) => {
-        if (change.type === 'added') {
-          const data = change.doc.data();
-          // Wait for remote description before adding candidates
-          if (pc.current?.remoteDescription) {
-            pc.current?.addIceCandidate(new RTCIceCandidate(data)).catch(e => console.error("ICE error", e));
-          }
+      onSnapshot(sessionRef, (snapshot) => {
+        const data = snapshot.data();
+        if (!pc.current?.currentRemoteDescription && data?.answer) {
+          const answerDescription = new RTCSessionDescription(data.answer);
+          pc.current?.setRemoteDescription(answerDescription);
         }
       });
-    });
 
-    toast({ title: "Class Started", description: "You are now live." });
+      onSnapshot(calleeCandidatesCollection, (snapshot) => {
+        snapshot.docChanges().forEach((change) => {
+          if (change.type === 'added') {
+            const data = change.doc.data();
+            if (pc.current?.remoteDescription) {
+              pc.current?.addIceCandidate(new RTCIceCandidate(data)).catch(e => console.error("ICE error", e));
+            }
+          }
+        });
+      });
+
+      toast({ title: "Class Started", description: "You are now live." });
+    } catch (err) {
+      console.error("Start Session Error:", err);
+      setConnectionStatus('failed');
+      isStarted.current = false;
+    }
   };
 
   const joinSession = async () => {
@@ -185,10 +192,7 @@ export default function LiveClassroom({ courseId, isInstructor }: LiveClassroomP
         }
       };
 
-      // 1. Set the remote description from the instructor's offer
       await pc.current.setRemoteDescription(new RTCSessionDescription(sessionData.offer));
-      
-      // 2. Create the answer
       const answerDescription = await pc.current.createAnswer();
       await pc.current.setLocalDescription(answerDescription);
 
@@ -197,10 +201,8 @@ export default function LiveClassroom({ courseId, isInstructor }: LiveClassroomP
         sdp: answerDescription.sdp,
       };
 
-      // 3. Update Firestore with the answer
       await updateDoc(sessionRef, { answer });
 
-      // 4. Start listening for candidates ONLY after remote description is set
       onSnapshot(callerCandidatesCollection, (snapshot) => {
         snapshot.docChanges().forEach((change) => {
           if (change.type === 'added') {
@@ -324,7 +326,7 @@ export default function LiveClassroom({ courseId, isInstructor }: LiveClassroomP
                    </div>
                 )}
 
-                {isActive && (connectionStatus === 'connecting' || connectionStatus === 'idle' && isJoining) && (
+                {isActive && (connectionStatus === 'connecting' || (connectionStatus === 'idle' && isJoining)) && (
                   <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/90 text-white">
                     <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
                     <p className="font-semibold text-lg">Establishing Secure Connection...</p>
