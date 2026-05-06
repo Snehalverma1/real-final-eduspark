@@ -40,7 +40,7 @@ export default function LiveClassroom({ courseId, isInstructor }: LiveClassroomP
   const [isVideoEnabled, setIsVideoEnabled] = useState(true);
   const [isInitialLoading, setIsInitialLoading] = useState(true);
   const [isJoining, setIsJoining] = useState(false);
-  const [connectionStatus, setConnectionStatus] = useState<'idle' | 'connecting' | 'connected' | 'failed'>('idle');
+  const [connectionStatus, setConnectionStatus] = useState<'idle' | 'connecting' | 'connected' | 'failed' | 'offline'>('idle');
 
   const sessionId = 'active_session';
   const sessionRef = useMemoFirebase(() => {
@@ -82,7 +82,7 @@ export default function LiveClassroom({ courseId, isInstructor }: LiveClassroomP
     };
   }, [isInstructor]);
 
-  // Start Session (Instructor)
+  // Start Session (Instructor/Caller)
   const startSession = async () => {
     if (!sessionRef || !localStream || !firestore || !user) return;
 
@@ -104,6 +104,7 @@ export default function LiveClassroom({ courseId, isInstructor }: LiveClassroomP
 
     pc.current.onconnectionstatechange = () => {
       if (pc.current?.connectionState === 'connected') setConnectionStatus('connected');
+      if (pc.current?.connectionState === 'failed') setConnectionStatus('failed');
     };
 
     const offerDescription = await pc.current.createOffer();
@@ -124,14 +125,16 @@ export default function LiveClassroom({ courseId, isInstructor }: LiveClassroomP
 
     await setDoc(sessionRef, sessionInitData);
 
-    onSnapshot(sessionRef, (snapshot) => {
+    // Listen for Answer
+    const unsubscribe = onSnapshot(sessionRef, (snapshot) => {
       const data = snapshot.data();
       if (!pc.current?.currentRemoteDescription && data?.answer) {
         const answerDescription = new RTCSessionDescription(data.answer);
-        pc.current.setRemoteDescription(answerDescription);
+        pc.current?.setRemoteDescription(answerDescription);
       }
     });
 
+    // Listen for Callee ICE Candidates
     onSnapshot(calleeCandidatesCollection, (snapshot) => {
       snapshot.docChanges().forEach((change) => {
         if (change.type === 'added') {
@@ -144,7 +147,7 @@ export default function LiveClassroom({ courseId, isInstructor }: LiveClassroomP
     toast({ title: "Class Started", description: "You are now live." });
   };
 
-  // Join Session (Student)
+  // Join Session (Student/Callee)
   const joinSession = async () => {
     if (!sessionRef || !firestore || isInstructor || isJoining) return;
 
@@ -179,10 +182,14 @@ export default function LiveClassroom({ courseId, isInstructor }: LiveClassroomP
 
       if (!data || !data.offer) {
         toast({ variant: "destructive", title: "Error", description: "No active broadcast found." });
+        setConnectionStatus('offline');
         return;
       }
 
+      // 1. Set Remote Description (Offer)
       await pc.current.setRemoteDescription(new RTCSessionDescription(data.offer));
+      
+      // 2. Create Answer
       const answerDescription = await pc.current.createAnswer();
       await pc.current.setLocalDescription(answerDescription);
 
@@ -191,8 +198,10 @@ export default function LiveClassroom({ courseId, isInstructor }: LiveClassroomP
         sdp: answerDescription.sdp,
       };
 
+      // 3. Write Answer to Firestore
       await updateDoc(sessionRef, { answer });
 
+      // 4. Listen for Caller ICE Candidates
       onSnapshot(callerCandidatesCollection, (snapshot) => {
         snapshot.docChanges().forEach((change) => {
           if (change.type === 'added') {
@@ -202,7 +211,7 @@ export default function LiveClassroom({ courseId, isInstructor }: LiveClassroomP
         });
       });
     } catch (err) {
-      console.error(err);
+      console.error('WebRTC Join Error:', err);
       setConnectionStatus('failed');
     } finally {
       setIsJoining(false);
@@ -315,6 +324,7 @@ export default function LiveClassroom({ courseId, isInstructor }: LiveClassroomP
                   <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/90 text-white">
                     <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
                     <p className="font-semibold">Establishing P2P Connection...</p>
+                    <p className="text-xs text-muted-foreground mt-2">Checking signal via Firestore</p>
                   </div>
                 )}
               </>
@@ -351,7 +361,7 @@ export default function LiveClassroom({ courseId, isInstructor }: LiveClassroomP
           {connectionStatus === 'failed' && (
             <Alert variant="destructive">
               <AlertTitle>Connection Failed</AlertTitle>
-              <AlertDescription>Could not establish a direct peer-to-peer connection. Please try refreshing.</AlertDescription>
+              <AlertDescription>Could not establish a direct peer-to-peer connection. This can happen on some corporate networks or if signaling is interrupted.</AlertDescription>
             </Alert>
           )}
         </div>
@@ -373,7 +383,7 @@ export default function LiveClassroom({ courseId, isInstructor }: LiveClassroomP
                 <p className="text-[10px] uppercase font-bold text-muted-foreground mb-1">Technology</p>
                 <div className="flex items-center gap-2">
                    <div className="h-2 w-2 rounded-full bg-blue-500" />
-                   <p className="font-bold text-sm">WebRTC P2P</p>
+                   <p className="font-bold text-sm">WebRTC + STUN</p>
                 </div>
               </div>
             </CardContent>
@@ -383,11 +393,11 @@ export default function LiveClassroom({ courseId, isInstructor }: LiveClassroomP
             <CardHeader className="pb-2">
               <CardTitle className="text-sm flex items-center gap-2 text-primary font-headline">
                 <Sparkles className="h-4 w-4" />
-                Prototyping Note
+                Troubleshooting
               </CardTitle>
             </CardHeader>
             <CardContent className="text-xs text-muted-foreground leading-relaxed">
-              Signaling is handled via Firestore. For testing, open two different browsers or an incognito window to simulate two separate peers.
+              If the screen remains black, ensure both tabs are active. Some browsers throttle background tabs, which can interrupt the WebRTC handshake.
             </CardContent>
           </Card>
         </div>
