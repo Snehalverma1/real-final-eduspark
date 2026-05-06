@@ -31,6 +31,7 @@ export default function LiveClassroom({ courseId, isInstructor }: LiveClassroomP
   const { toast } = useToast();
   
   const localVideoRef = useRef<HTMLVideoElement>(null);
+  const localScreenRef = useRef<HTMLVideoElement>(null);
   const remoteVideoRef = useRef<HTMLVideoElement>(null);
   const remoteScreenRef = useRef<HTMLVideoElement>(null);
   
@@ -91,12 +92,18 @@ export default function LiveClassroom({ courseId, isInstructor }: LiveClassroomP
     };
   }, [isInstructor]);
 
-  // Attach local stream to video ref
+  // Sync media to video refs
   useEffect(() => {
     if (isInstructor && localVideoRef.current && localStream) {
       localVideoRef.current.srcObject = localStream;
     }
-  }, [localStream, isInstructor]);
+  }, [localStream, isInstructor, isVideoEnabled]);
+
+  useEffect(() => {
+    if (isInstructor && isScreenSharing && screenStream && localScreenRef.current) {
+        localScreenRef.current.srcObject = screenStream;
+    }
+  }, [isInstructor, isScreenSharing, screenStream]);
 
   const processQueuedCandidates = async () => {
     if (!pc.current || !pc.current.remoteDescription) return;
@@ -146,6 +153,7 @@ export default function LiveClassroom({ courseId, isInstructor }: LiveClassroomP
         instructorId: user.uid,
         instructorName: user.displayName || 'Instructor',
         offer: { sdp: offerDescription.sdp, type: offerDescription.type },
+        answer: null,
         createdAt: serverTimestamp(),
       };
 
@@ -195,13 +203,17 @@ export default function LiveClassroom({ courseId, isInstructor }: LiveClassroomP
         const stream = event.streams[0];
         if (!stream) return;
 
-        // Determine if it's the screen share or the camera
-        // In simple addTrack, the first stream found is the camera
+        // Determine if it's the screen share or the camera based on track count or ID
+        // Usually screen share is added later
         if (event.track.kind === 'video') {
+           // We assign based on stream ID to ensure consistency
            if (!remoteVideoRef.current?.srcObject) {
              remoteVideoRef.current!.srcObject = stream;
-           } else if (remoteScreenRef.current && (remoteVideoRef.current.srcObject as MediaStream).id !== stream.id) {
-             remoteScreenRef.current.srcObject = stream;
+           } else {
+             const existingStream = remoteVideoRef.current.srcObject as MediaStream;
+             if (existingStream.id !== stream.id && remoteScreenRef.current) {
+                remoteScreenRef.current.srcObject = stream;
+             }
            }
         } else if (event.track.kind === 'audio') {
            if (remoteVideoRef.current && !remoteVideoRef.current.srcObject) {
@@ -270,6 +282,8 @@ export default function LiveClassroom({ courseId, isInstructor }: LiveClassroomP
       pc.current = null;
       isBroadcasting.current = false;
       setConnectionStatus('idle');
+      setScreenStream(null);
+      setIsScreenSharing(false);
       toast({ title: "Session Ended", description: "Broadcast stopped." });
     });
   };
@@ -407,12 +421,12 @@ export default function LiveClassroom({ courseId, isInstructor }: LiveClassroomP
                     muted 
                     playsInline 
                 />
-                {isScreenSharing && screenStream && (
+                {isScreenSharing && (
                     <video 
+                        ref={localScreenRef}
                         autoPlay 
                         muted 
                         playsInline 
-                        ref={(el) => { if(el) el.srcObject = screenStream; }}
                         className="w-full h-full object-contain bg-black"
                     />
                 )}
