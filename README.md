@@ -1,3 +1,4 @@
+
 # EduSpark - Ignite Your Learning Journey
 
 EduSpark is a modern, AI-powered educational platform designed for seamless learning and interactive teaching.

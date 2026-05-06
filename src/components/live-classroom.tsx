@@ -419,4 +419,3 @@ export default function LiveClassroom({ courseId, isInstructor }: LiveClassroomP
     </div>
   );
 }
-
