@@ -107,8 +107,9 @@ export default function LiveClassroom({ courseId, isInstructor }: LiveClassroomP
     };
 
     pc.current.onconnectionstatechange = () => {
-      if (pc.current?.connectionState === 'connected') setConnectionStatus('connected');
-      if (pc.current?.connectionState === 'failed') setConnectionStatus('failed');
+      const state = pc.current?.connectionState;
+      if (state === 'connected') setConnectionStatus('connected');
+      if (state === 'failed' || state === 'disconnected') setConnectionStatus('failed');
     };
 
     const offerDescription = await pc.current.createOffer();
@@ -141,7 +142,10 @@ export default function LiveClassroom({ courseId, isInstructor }: LiveClassroomP
       snapshot.docChanges().forEach((change) => {
         if (change.type === 'added') {
           const data = change.doc.data();
-          pc.current?.addIceCandidate(new RTCIceCandidate(data));
+          // Wait for remote description before adding candidates
+          if (pc.current?.remoteDescription) {
+            pc.current?.addIceCandidate(new RTCIceCandidate(data)).catch(e => console.error("ICE error", e));
+          }
         }
       });
     });
@@ -167,8 +171,9 @@ export default function LiveClassroom({ courseId, isInstructor }: LiveClassroomP
       };
 
       pc.current.onconnectionstatechange = () => {
-        if (pc.current?.connectionState === 'connected') setConnectionStatus('connected');
-        if (pc.current?.connectionState === 'failed') setConnectionStatus('failed');
+        const state = pc.current?.connectionState;
+        if (state === 'connected') setConnectionStatus('connected');
+        if (state === 'failed' || state === 'disconnected') setConnectionStatus('failed');
       };
 
       const callerCandidatesCollection = collection(sessionRef, 'callerCandidates');
@@ -180,8 +185,10 @@ export default function LiveClassroom({ courseId, isInstructor }: LiveClassroomP
         }
       };
 
+      // 1. Set the remote description from the instructor's offer
       await pc.current.setRemoteDescription(new RTCSessionDescription(sessionData.offer));
       
+      // 2. Create the answer
       const answerDescription = await pc.current.createAnswer();
       await pc.current.setLocalDescription(answerDescription);
 
@@ -190,13 +197,15 @@ export default function LiveClassroom({ courseId, isInstructor }: LiveClassroomP
         sdp: answerDescription.sdp,
       };
 
+      // 3. Update Firestore with the answer
       await updateDoc(sessionRef, { answer });
 
+      // 4. Start listening for candidates ONLY after remote description is set
       onSnapshot(callerCandidatesCollection, (snapshot) => {
         snapshot.docChanges().forEach((change) => {
           if (change.type === 'added') {
             const candidateData = change.doc.data();
-            pc.current?.addIceCandidate(new RTCIceCandidate(candidateData));
+            pc.current?.addIceCandidate(new RTCIceCandidate(candidateData)).catch(e => console.error("ICE error", e));
           }
         });
       });
@@ -315,7 +324,7 @@ export default function LiveClassroom({ courseId, isInstructor }: LiveClassroomP
                    </div>
                 )}
 
-                {isActive && connectionStatus === 'connecting' && (
+                {isActive && (connectionStatus === 'connecting' || connectionStatus === 'idle' && isJoining) && (
                   <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/90 text-white">
                     <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
                     <p className="font-semibold text-lg">Establishing Secure Connection...</p>
@@ -334,6 +343,17 @@ export default function LiveClassroom({ courseId, isInstructor }: LiveClassroomP
                       {isRemoteMuted ? <VolumeX className="h-5 w-5" /> : <Volume2 className="h-5 w-5" />}
                     </Button>
                   </div>
+                )}
+                
+                {isActive && connectionStatus === 'failed' && (
+                   <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/90 text-white p-6 text-center">
+                    <VideoOff className="h-12 w-12 text-red-500 mb-4" />
+                    <h3 className="text-xl font-bold text-red-500">Connection Failed</h3>
+                    <p className="text-muted-foreground mb-6 max-w-xs">
+                      We couldn't establish a peer-to-peer connection. This can happen due to strict network firewalls.
+                    </p>
+                    <Button variant="outline" onClick={() => window.location.reload()}>Retry Connection</Button>
+                   </div>
                 )}
               </>
             )}
