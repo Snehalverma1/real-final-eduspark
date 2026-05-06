@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
@@ -8,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, Video, VideoOff, Mic, MicOff, LogOut, Users, Play, Volume2, VolumeX, RefreshCw } from 'lucide-react';
+import { Loader2, Video, VideoOff, Mic, MicOff, LogOut, Users, Play, Volume2, VolumeX, RefreshCw, Monitor, MonitorOff } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 
@@ -33,6 +32,7 @@ export default function LiveClassroom({ courseId, isInstructor }: LiveClassroomP
   
   const localVideoRef = useRef<HTMLVideoElement>(null);
   const remoteVideoRef = useRef<HTMLVideoElement>(null);
+  const remoteScreenRef = useRef<HTMLVideoElement>(null);
   
   const pc = useRef<RTCPeerConnection | null>(null);
   const isStarted = useRef(false);
@@ -40,11 +40,13 @@ export default function LiveClassroom({ courseId, isInstructor }: LiveClassroomP
   
   const [hasCameraPermission, setHasCameraPermission] = useState<boolean | null>(null);
   const [localStream, setLocalStream] = useState<MediaStream | null>(null);
+  const [screenStream, setScreenStream] = useState<MediaStream | null>(null);
   
   const [isAudioEnabled, setIsAudioEnabled] = useState(true);
   const [isVideoEnabled, setIsVideoEnabled] = useState(true);
+  const [isScreenSharing, setIsScreenSharing] = useState(false);
   
-  const [isRemoteMuted, setIsRemoteMuted] = useState(false);
+  const [isRemoteMuted, setIsRemoteMuted] = useState(true);
   const [isInitialLoading, setIsInitialLoading] = useState(true);
   const [isJoining, setIsJoining] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState<'idle' | 'connecting' | 'connected' | 'failed' | 'offline'>('idle');
@@ -84,16 +86,17 @@ export default function LiveClassroom({ courseId, isInstructor }: LiveClassroomP
 
     return () => {
       localStream?.getTracks().forEach(track => track.stop());
+      screenStream?.getTracks().forEach(track => track.stop());
       pc.current?.close();
     };
   }, [isInstructor]);
 
-  // Attach local stream to video ref once both are available
+  // Attach local stream to video ref
   useEffect(() => {
     if (isInstructor && localVideoRef.current && localStream) {
       localVideoRef.current.srcObject = localStream;
     }
-  }, [localStream, isInitialLoading, isInstructor]);
+  }, [localStream, isInstructor]);
 
   const processQueuedCandidates = () => {
     if (!pc.current || !pc.current.remoteDescription) return;
@@ -184,8 +187,12 @@ export default function LiveClassroom({ courseId, isInstructor }: LiveClassroomP
 
       pc.current.ontrack = (event) => {
         const stream = event.streams[0];
-        if (remoteVideoRef.current) {
+        // We might have multiple streams if screen sharing is active
+        // Typically the first stream is the camera
+        if (remoteVideoRef.current && !remoteVideoRef.current.srcObject) {
           remoteVideoRef.current.srcObject = stream;
+        } else if (remoteScreenRef.current && !remoteScreenRef.current.srcObject) {
+          remoteScreenRef.current.srcObject = stream;
         }
       };
 
@@ -257,6 +264,40 @@ export default function LiveClassroom({ courseId, isInstructor }: LiveClassroomP
     }
   };
 
+  const toggleScreenShare = async () => {
+    if (!isInstructor || !pc.current) return;
+
+    if (isScreenSharing) {
+      screenStream?.getTracks().forEach(track => track.stop());
+      setScreenStream(null);
+      setIsScreenSharing(false);
+      // In a real app, we'd remove the track from PC and re-negotiate
+      // For MVP, we toggle UI local visibility
+    } else {
+      try {
+        const stream = await navigator.mediaDevices.getDisplayMedia({ video: true });
+        setScreenStream(stream);
+        setIsScreenSharing(true);
+        stream.getTracks()[0].onended = () => {
+          setIsScreenSharing(false);
+          setScreenStream(null);
+        };
+        // Add to PeerConnection
+        stream.getTracks().forEach(track => {
+            pc.current?.addTrack(track, stream);
+        });
+        
+        // Re-negotiation would happen here for a production app
+        const offer = await pc.current.createOffer();
+        await pc.current.setLocalDescription(offer);
+        await updateDoc(sessionRef!, { offer: { sdp: offer.sdp, type: offer.type } });
+
+      } catch (err) {
+        console.error("Screen share error:", err);
+      }
+    }
+  };
+
   if (isInitialLoading || isSessionLoading) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[400px] gap-4">
@@ -314,25 +355,47 @@ export default function LiveClassroom({ courseId, isInstructor }: LiveClassroomP
         <div className="space-y-4">
           <div className="relative aspect-video bg-neutral-950 rounded-2xl overflow-hidden border-4 border-muted shadow-2xl group/classroom">
             
+            {/* INSTRUCTOR VIEW */}
             {isInstructor && (
-              <video 
-                ref={localVideoRef} 
-                className={cn("w-full h-full object-cover", !isVideoEnabled && "hidden")} 
-                autoPlay 
-                muted 
-                playsInline 
-              />
+              <div className="w-full h-full relative">
+                 <video 
+                    ref={localVideoRef} 
+                    className={cn("w-full h-full object-cover", !isVideoEnabled && "hidden", isScreenSharing && "absolute bottom-4 right-4 w-64 h-36 border-2 border-white rounded-lg z-10")} 
+                    autoPlay 
+                    muted 
+                    playsInline 
+                />
+                {isScreenSharing && screenStream && (
+                    <video 
+                        autoPlay 
+                        muted 
+                        playsInline 
+                        ref={(el) => { if(el) el.srcObject = screenStream; }}
+                        className="w-full h-full object-contain bg-black"
+                    />
+                )}
+              </div>
             )}
 
+            {/* STUDENT VIEW */}
             {!isInstructor && (
               <>
-                <video 
-                  ref={remoteVideoRef} 
-                  className={cn("w-full h-full object-cover", (!isActive || connectionStatus === 'idle') && "hidden")} 
-                  autoPlay 
-                  playsInline
-                  muted={isRemoteMuted}
-                />
+                <div className="w-full h-full relative">
+                    <video 
+                        ref={remoteVideoRef} 
+                        className={cn("w-full h-full object-cover", (!isActive || connectionStatus === 'idle') && "hidden")} 
+                        autoPlay 
+                        playsInline
+                        muted={isRemoteMuted}
+                    />
+                    <video 
+                        ref={remoteScreenRef}
+                        className="absolute inset-0 w-full h-full object-contain bg-black hidden [&:not([srcObject=null])]:block"
+                        autoPlay
+                        playsInline
+                        muted={isRemoteMuted}
+                    />
+                </div>
                 
                 {isActive && connectionStatus === 'idle' && (
                    <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/80 backdrop-blur-sm text-white p-6 text-center">
@@ -372,12 +435,15 @@ export default function LiveClassroom({ courseId, isInstructor }: LiveClassroomP
             )}
 
             {isInstructor && isActive && (
-              <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex items-center gap-4 bg-black/40 backdrop-blur-xl p-4 rounded-full border border-white/20 shadow-2xl transition-opacity opacity-0 group-hover/classroom:opacity-100">
+              <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex items-center gap-4 bg-black/40 backdrop-blur-xl p-4 rounded-full border border-white/20 shadow-2xl transition-opacity opacity-0 group-hover/classroom:opacity-100 z-20">
                 <Button variant="ghost" size="icon" className={cn("rounded-full h-12 w-12 bg-white/10 hover:bg-white/20 text-white", !isAudioEnabled && "text-red-500 bg-red-500/20")} onClick={toggleAudio}>
                   {isAudioEnabled ? <Mic className="h-6 w-6" /> : <MicOff className="h-6 w-6" />}
                 </Button>
                 <Button variant="ghost" size="icon" className={cn("rounded-full h-12 w-12 bg-white/10 hover:bg-white/20 text-white", !isVideoEnabled && "text-red-500 bg-red-500/20")} onClick={toggleVideo}>
                   {isVideoEnabled ? <Video className="h-6 w-6" /> : <VideoOff className="h-6 w-6" />}
+                </Button>
+                <Button variant="ghost" size="icon" className={cn("rounded-full h-12 w-12 bg-white/10 hover:bg-white/20 text-white", isScreenSharing && "text-accent bg-accent/20")} onClick={toggleScreenShare}>
+                  {isScreenSharing ? <MonitorOff className="h-6 w-6" /> : <Monitor className="h-6 w-6" />}
                 </Button>
               </div>
             )}
