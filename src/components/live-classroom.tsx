@@ -1,13 +1,13 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { useUser, useFirestore, useDoc, useMemoFirebase, errorEmitter, FirestorePermissionError } from '@/firebase';
+import { useUser, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
 import { doc, setDoc, deleteDoc, serverTimestamp, collection, addDoc, onSnapshot, getDoc, updateDoc } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, Video, VideoOff, Mic, MicOff, LogOut, Users, Sparkles, MonitorPlay } from 'lucide-react';
+import { Loader2, Video, VideoOff, Mic, MicOff, LogOut, Users, Sparkles, Play } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 
@@ -39,6 +39,8 @@ export default function LiveClassroom({ courseId, isInstructor }: LiveClassroomP
   const [isAudioEnabled, setIsAudioEnabled] = useState(true);
   const [isVideoEnabled, setIsVideoEnabled] = useState(true);
   const [isInitialLoading, setIsInitialLoading] = useState(true);
+  const [isJoining, setIsJoining] = useState(false);
+  const [connectionStatus, setConnectionStatus] = useState<'idle' | 'connecting' | 'connected' | 'failed'>('idle');
 
   const sessionId = 'active_session';
   const sessionRef = useMemoFirebase(() => {
@@ -48,8 +50,13 @@ export default function LiveClassroom({ courseId, isInstructor }: LiveClassroomP
 
   const { data: sessionData, isLoading: isSessionLoading } = useDoc(sessionRef);
 
-  // Initialize WebRTC and Camera
+  // Initialize Media for Instructor
   useEffect(() => {
+    if (!isInstructor) {
+      setIsInitialLoading(false);
+      return;
+    }
+
     const initializeMedia = async () => {
       try {
         const stream = await navigator.mediaDevices.getUserMedia({ 
@@ -73,20 +80,19 @@ export default function LiveClassroom({ courseId, isInstructor }: LiveClassroomP
       localStream?.getTracks().forEach(track => track.stop());
       pc.current?.close();
     };
-  }, []);
+  }, [isInstructor]);
 
-  // WebRTC Logic for Instructor
+  // Start Session (Instructor)
   const startSession = async () => {
-    if (!sessionRef || !localStream || !firestore) return;
+    if (!sessionRef || !localStream || !firestore || !user) return;
 
+    setConnectionStatus('connecting');
     pc.current = new RTCPeerConnection(servers);
 
-    // Add local tracks to the connection
     localStream.getTracks().forEach((track) => {
       pc.current?.addTrack(track, localStream);
     });
 
-    // Pull candidates from database
     const callerCandidatesCollection = collection(sessionRef, 'callerCandidates');
     const calleeCandidatesCollection = collection(sessionRef, 'calleeCandidates');
 
@@ -96,7 +102,10 @@ export default function LiveClassroom({ courseId, isInstructor }: LiveClassroomP
       }
     };
 
-    // Create offer
+    pc.current.onconnectionstatechange = () => {
+      if (pc.current?.connectionState === 'connected') setConnectionStatus('connected');
+    };
+
     const offerDescription = await pc.current.createOffer();
     await pc.current.setLocalDescription(offerDescription);
 
@@ -108,14 +117,13 @@ export default function LiveClassroom({ courseId, isInstructor }: LiveClassroomP
     const sessionInitData = {
       offer,
       status: 'active',
-      instructorId: user?.uid,
-      instructorName: user?.displayName || 'Instructor',
+      instructorId: user.uid,
+      instructorName: user.displayName || 'Instructor',
       createdAt: serverTimestamp(),
     };
 
     await setDoc(sessionRef, sessionInitData);
 
-    // Listen for remote answer
     onSnapshot(sessionRef, (snapshot) => {
       const data = snapshot.data();
       if (!pc.current?.currentRemoteDescription && data?.answer) {
@@ -124,7 +132,6 @@ export default function LiveClassroom({ courseId, isInstructor }: LiveClassroomP
       }
     });
 
-    // Listen for remote ICE candidates
     onSnapshot(calleeCandidatesCollection, (snapshot) => {
       snapshot.docChanges().forEach((change) => {
         if (change.type === 'added') {
@@ -134,69 +141,80 @@ export default function LiveClassroom({ courseId, isInstructor }: LiveClassroomP
       });
     });
 
-    toast({ title: "Session Started", description: "Your live signals are broadcasting." });
+    toast({ title: "Class Started", description: "You are now live." });
   };
 
-  // WebRTC Logic for Student
+  // Join Session (Student)
   const joinSession = async () => {
-    if (!sessionRef || !firestore || isInstructor) return;
+    if (!sessionRef || !firestore || isInstructor || isJoining) return;
 
-    pc.current = new RTCPeerConnection(servers);
+    setIsJoining(true);
+    setConnectionStatus('connecting');
+    
+    try {
+      pc.current = new RTCPeerConnection(servers);
 
-    pc.current.ontrack = (event) => {
-      if (remoteVideoRef.current) {
-        remoteVideoRef.current.srcObject = event.streams[0];
-      }
-    };
-
-    const callerCandidatesCollection = collection(sessionRef, 'callerCandidates');
-    const calleeCandidatesCollection = collection(sessionRef, 'calleeCandidates');
-
-    pc.current.onicecandidate = (event) => {
-      if (event.candidate) {
-        addDoc(calleeCandidatesCollection, event.candidate.toJSON());
-      }
-    };
-
-    const sessionSnapshot = await getDoc(sessionRef);
-    const sessionData = sessionSnapshot.data();
-
-    if (!sessionData) return;
-
-    const offerDescription = sessionData.offer;
-    await pc.current.setRemoteDescription(new RTCSessionDescription(offerDescription));
-
-    const answerDescription = await pc.current.createAnswer();
-    await pc.current.setLocalDescription(answerDescription);
-
-    const answer = {
-      type: answerDescription.type,
-      sdp: answerDescription.sdp,
-    };
-
-    await updateDoc(sessionRef, { answer });
-
-    onSnapshot(callerCandidatesCollection, (snapshot) => {
-      snapshot.docChanges().forEach((change) => {
-        if (change.type === 'added') {
-          const data = change.doc.data();
-          pc.current?.addIceCandidate(new RTCIceCandidate(data));
+      pc.current.ontrack = (event) => {
+        if (remoteVideoRef.current) {
+          remoteVideoRef.current.srcObject = event.streams[0];
         }
-      });
-    });
-  };
+      };
 
-  useEffect(() => {
-    if (sessionData?.status === 'active' && !isInstructor && !pc.current) {
-      joinSession();
+      pc.current.onconnectionstatechange = () => {
+        if (pc.current?.connectionState === 'connected') setConnectionStatus('connected');
+        if (pc.current?.connectionState === 'failed') setConnectionStatus('failed');
+      };
+
+      const callerCandidatesCollection = collection(sessionRef, 'callerCandidates');
+      const calleeCandidatesCollection = collection(sessionRef, 'calleeCandidates');
+
+      pc.current.onicecandidate = (event) => {
+        if (event.candidate) {
+          addDoc(calleeCandidatesCollection, event.candidate.toJSON());
+        }
+      };
+
+      const sessionSnapshot = await getDoc(sessionRef);
+      const data = sessionSnapshot.data();
+
+      if (!data || !data.offer) {
+        toast({ variant: "destructive", title: "Error", description: "No active broadcast found." });
+        return;
+      }
+
+      await pc.current.setRemoteDescription(new RTCSessionDescription(data.offer));
+      const answerDescription = await pc.current.createAnswer();
+      await pc.current.setLocalDescription(answerDescription);
+
+      const answer = {
+        type: answerDescription.type,
+        sdp: answerDescription.sdp,
+      };
+
+      await updateDoc(sessionRef, { answer });
+
+      onSnapshot(callerCandidatesCollection, (snapshot) => {
+        snapshot.docChanges().forEach((change) => {
+          if (change.type === 'added') {
+            const candidateData = change.doc.data();
+            pc.current?.addIceCandidate(new RTCIceCandidate(candidateData));
+          }
+        });
+      });
+    } catch (err) {
+      console.error(err);
+      setConnectionStatus('failed');
+    } finally {
+      setIsJoining(false);
     }
-  }, [sessionData, isInstructor]);
+  };
 
   const endSession = () => {
     if (!sessionRef) return;
     deleteDoc(sessionRef).then(() => {
       pc.current?.close();
       pc.current = null;
+      setConnectionStatus('idle');
       toast({ title: "Session Ended", description: "Broadcast stopped." });
     });
   };
@@ -219,7 +237,7 @@ export default function LiveClassroom({ courseId, isInstructor }: LiveClassroomP
     return (
       <div className="flex flex-col items-center justify-center min-h-[400px] gap-4">
         <Loader2 className="h-10 w-10 animate-spin text-primary" />
-        <p className="text-muted-foreground">Initializing Live Connection...</p>
+        <p className="text-muted-foreground font-medium">Preparing classroom...</p>
       </div>
     );
   }
@@ -235,20 +253,26 @@ export default function LiveClassroom({ courseId, isInstructor }: LiveClassroomP
           </Badge>
           <div>
             <h2 className="text-2xl font-bold font-headline">Live Classroom</h2>
-            <p className="text-xs text-muted-foreground">
-              {isActive ? `Instructor ${sessionData.instructorName} is streaming` : "Waiting for session to start"}
+            <p className="text-xs text-muted-foreground uppercase tracking-widest font-semibold">
+              {isActive ? `Host: ${sessionData.instructorName}` : "Classroom is currently idle"}
             </p>
           </div>
         </div>
         <div className="flex gap-2">
-          {isInstructor && (
+          {isInstructor ? (
             isActive ? (
               <Button variant="destructive" onClick={endSession}>
-                <LogOut className="mr-2 h-4 w-4" /> End Session
+                <LogOut className="mr-2 h-4 w-4" /> End Broadcast
               </Button>
             ) : (
-              <Button onClick={startSession} className="bg-red-600 hover:bg-red-700 text-white">
-                <Video className="mr-2 h-4 w-4" /> Start Live Class
+              <Button onClick={startSession} className="bg-red-600 hover:bg-red-700 text-white shadow-lg">
+                <Video className="mr-2 h-4 w-4" /> Go Live Now
+              </Button>
+            )
+          ) : (
+            isActive && connectionStatus === 'idle' && (
+              <Button onClick={joinSession} className="bg-green-600 hover:bg-green-700 text-white shadow-lg">
+                <Play className="mr-2 h-4 w-4" /> Join Live Stream
               </Button>
             )
           )}
@@ -257,8 +281,8 @@ export default function LiveClassroom({ courseId, isInstructor }: LiveClassroomP
 
       <div className="grid lg:grid-cols-[1fr_320px] gap-6">
         <div className="space-y-4">
-          <div className="relative aspect-video bg-neutral-950 rounded-2xl overflow-hidden border shadow-2xl">
-            {/* INSTRUCTOR VIEW: Show local camera */}
+          <div className="relative aspect-video bg-neutral-950 rounded-2xl overflow-hidden border-4 border-muted shadow-2xl">
+            {/* INSTRUCTOR VIEW */}
             {isInstructor && (
               <video 
                 ref={localVideoRef} 
@@ -269,32 +293,48 @@ export default function LiveClassroom({ courseId, isInstructor }: LiveClassroomP
               />
             )}
 
-            {/* STUDENT VIEW: Show remote camera */}
-            {!isInstructor && isActive && (
-              <video 
-                ref={remoteVideoRef} 
-                className="w-full h-full object-cover" 
-                autoPlay 
-                playsInline 
-              />
+            {/* STUDENT VIEW */}
+            {!isInstructor && (
+              <>
+                <video 
+                  ref={remoteVideoRef} 
+                  className={cn("w-full h-full object-cover", (connectionStatus !== 'connected' || !isActive) && "hidden")} 
+                  autoPlay 
+                  playsInline 
+                />
+                
+                {isActive && connectionStatus === 'idle' && (
+                   <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/80 backdrop-blur-sm text-white p-6 text-center">
+                    <Video className="h-16 w-16 mb-4 text-primary opacity-50" />
+                    <h3 className="text-xl font-bold">The class is live!</h3>
+                    <p className="text-muted-foreground mb-6 max-w-xs">Click the button above to start receiving the video feed.</p>
+                   </div>
+                )}
+
+                {isActive && connectionStatus === 'connecting' && (
+                  <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/90 text-white">
+                    <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
+                    <p className="font-semibold">Establishing P2P Connection...</p>
+                  </div>
+                )}
+              </>
             )}
 
-            {/* Offline State for Student */}
-            {!isActive && !isInstructor && (
-              <div className="absolute inset-0 flex flex-col items-center justify-center text-white p-6 text-center bg-neutral-900">
-                <VideoOff className="h-20 w-20 text-muted-foreground mb-4" />
-                <h3 className="text-2xl font-bold">Classroom is Offline</h3>
-                <p className="text-muted-foreground mt-2">The instructor has not started the live stream yet.</p>
+            {/* Offline/Empty State */}
+            {!isActive && (
+              <div className="absolute inset-0 flex flex-col items-center justify-center text-white p-6 text-center bg-neutral-900/50">
+                <VideoOff className="h-20 w-20 text-muted-foreground/30 mb-4" />
+                <h3 className="text-2xl font-bold text-muted-foreground/50">Classroom Offline</h3>
               </div>
             )}
 
-            {/* Instructor Controls */}
-            {isInstructor && (
-              <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex items-center gap-4 bg-black/60 backdrop-blur-md p-3 rounded-full border border-white/10 shadow-2xl">
-                <Button variant="ghost" size="icon" className={cn("rounded-full h-12 w-12 text-white", !isAudioEnabled && "text-red-500")} onClick={toggleAudio}>
+            {/* Controls Layer */}
+            {isInstructor && isActive && (
+              <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex items-center gap-4 bg-black/40 backdrop-blur-xl p-4 rounded-full border border-white/20 shadow-2xl">
+                <Button variant="ghost" size="icon" className={cn("rounded-full h-12 w-12 bg-white/10 hover:bg-white/20 text-white", !isAudioEnabled && "text-red-500 bg-red-500/20")} onClick={toggleAudio}>
                   {isAudioEnabled ? <Mic className="h-6 w-6" /> : <MicOff className="h-6 w-6" />}
                 </Button>
-                <Button variant="ghost" size="icon" className={cn("rounded-full h-12 w-12 text-white", !isVideoEnabled && "text-red-500")} onClick={toggleVideo}>
+                <Button variant="ghost" size="icon" className={cn("rounded-full h-12 w-12 bg-white/10 hover:bg-white/20 text-white", !isVideoEnabled && "text-red-500 bg-red-500/20")} onClick={toggleVideo}>
                   {isVideoEnabled ? <Video className="h-6 w-6" /> : <VideoOff className="h-6 w-6" />}
                 </Button>
               </div>
@@ -303,41 +343,51 @@ export default function LiveClassroom({ courseId, isInstructor }: LiveClassroomP
 
           {isInstructor && hasCameraPermission === false && (
             <Alert variant="destructive">
-              <AlertTitle>Camera Access Required</AlertTitle>
-              <AlertDescription>Please enable camera permissions in your browser to broadcast.</AlertDescription>
+              <AlertTitle>Camera Blocked</AlertTitle>
+              <AlertDescription>We need camera access to broadcast your class. Please check your browser settings.</AlertDescription>
+            </Alert>
+          )}
+
+          {connectionStatus === 'failed' && (
+            <Alert variant="destructive">
+              <AlertTitle>Connection Failed</AlertTitle>
+              <AlertDescription>Could not establish a direct peer-to-peer connection. Please try refreshing.</AlertDescription>
             </Alert>
           )}
         </div>
 
         <div className="space-y-6">
-          <Card>
+          <Card className="border-none shadow-lg bg-card/50">
             <CardHeader className="pb-2">
               <CardTitle className="text-lg flex items-center gap-2 font-headline">
                 <Users className="h-5 w-5 text-primary" />
-                Class Details
+                Session Info
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="p-3 rounded-lg bg-muted/50 border">
-                <p className="text-[10px] uppercase font-bold text-muted-foreground">Host</p>
-                <p className="font-bold text-sm">{isActive ? sessionData?.instructorName : "None"}</p>
+              <div className="p-4 rounded-xl bg-background border shadow-sm">
+                <p className="text-[10px] uppercase font-bold text-muted-foreground mb-1">Status</p>
+                <p className="font-bold text-sm capitalize">{connectionStatus === 'connected' ? 'Streaming Active' : connectionStatus}</p>
               </div>
-              <div className="p-3 rounded-lg bg-muted/50 border">
-                <p className="text-[10px] uppercase font-bold text-muted-foreground">Mode</p>
-                <p className="font-bold text-sm">{isInstructor ? "Broadcasting" : "Watching"}</p>
+              <div className="p-4 rounded-xl bg-background border shadow-sm">
+                <p className="text-[10px] uppercase font-bold text-muted-foreground mb-1">Technology</p>
+                <div className="flex items-center gap-2">
+                   <div className="h-2 w-2 rounded-full bg-blue-500" />
+                   <p className="font-bold text-sm">WebRTC P2P</p>
+                </div>
               </div>
             </CardContent>
           </Card>
 
-          <Card className="bg-primary/5 border-primary/20">
+          <Card className="bg-primary/5 border-primary/20 border-2">
             <CardHeader className="pb-2">
               <CardTitle className="text-sm flex items-center gap-2 text-primary font-headline">
                 <Sparkles className="h-4 w-4" />
-                Live Interaction
+                Prototyping Note
               </CardTitle>
             </CardHeader>
             <CardContent className="text-xs text-muted-foreground leading-relaxed">
-              Real-time video is active using Peer-to-Peer signaling via Firebase. Latency is optimized for teaching.
+              Signaling is handled via Firestore. For testing, open two different browsers or an incognito window to simulate two separate peers.
             </CardContent>
           </Card>
         </div>
