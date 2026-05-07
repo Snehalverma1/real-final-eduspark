@@ -10,7 +10,6 @@ import { Badge } from '@/components/ui/badge';
 import { Loader2, Video, VideoOff, LogOut, Users, Play, AlertCircle, Camera, Monitor, Mic } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 interface LiveClassroomProps {
   courseId: string;
@@ -31,18 +30,17 @@ export default function LiveClassroom({ courseId, isInstructor }: LiveClassroomP
   const firestore = useFirestore();
   const { toast } = useToast();
   
-  // Dedicated refs for Instructor
-  const instructorPrimaryRef = useRef<HTMLVideoElement>(null);
-  const instructorPipRef = useRef<HTMLVideoElement>(null);
+  // Video References
+  const primaryVideoRef = useRef<HTMLVideoElement>(null);
+  const pipVideoRef = useRef<HTMLVideoElement>(null);
   
-  // Dedicated refs for Student
-  const studentPrimaryRef = useRef<HTMLVideoElement>(null);
-  const studentPipRef = useRef<HTMLVideoElement>(null);
-  
+  // WebRTC Core
   const pc = useRef<RTCPeerConnection | null>(null);
-  
+  const candidateQueue = useRef<any[]>([]);
   const [localStream, setLocalStream] = useState<MediaStream | null>(null);
   const [screenStream, setScreenStream] = useState<MediaStream | null>(null);
+  
+  // UI State
   const [connectionStatus, setConnectionStatus] = useState<'idle' | 'connecting' | 'connected' | 'failed' | 'disconnected'>('idle');
   const [isSignaling, setIsSignaling] = useState(false);
   const [isLive, setIsLive] = useState(false);
@@ -54,27 +52,30 @@ export default function LiveClassroom({ courseId, isInstructor }: LiveClassroomP
   }, [firestore, courseId]);
 
   const { data: sessionData } = useDoc(sessionRef);
-  const candidateQueue = useRef<any[]>([]);
 
-  // Instructor: Attach streams to video elements
+  // Synchronize Instructor Videos
   useEffect(() => {
     if (!isInstructor) return;
-
+    
     if (screenStream) {
-      if (instructorPrimaryRef.current) instructorPrimaryRef.current.srcObject = screenStream;
-      if (instructorPipRef.current) instructorPipRef.current.srcObject = localStream;
-    } else {
-      if (instructorPrimaryRef.current) instructorPrimaryRef.current.srcObject = localStream;
+      if (primaryVideoRef.current) primaryVideoRef.current.srcObject = screenStream;
+      if (pipVideoRef.current) pipVideoRef.current.srcObject = localStream;
+    } else if (localStream) {
+      if (primaryVideoRef.current) primaryVideoRef.current.srcObject = localStream;
+      if (pipVideoRef.current) pipVideoRef.current.srcObject = null;
     }
   }, [isInstructor, localStream, screenStream]);
 
   const initCamera = async () => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+      const stream = await navigator.mediaDevices.getUserMedia({ 
+        video: { width: 1280, height: 720 }, 
+        audio: true 
+      });
       setLocalStream(stream);
-      toast({ title: "Camera Enabled", description: "You are ready to start." });
+      toast({ title: "Camera Enabled", description: "You are ready to go live." });
     } catch (err) {
-      toast({ variant: "destructive", title: "Camera Error", description: "Could not access camera." });
+      toast({ variant: "destructive", title: "Camera Error", description: "Please ensure camera permissions are granted." });
     }
   };
 
@@ -83,15 +84,16 @@ export default function LiveClassroom({ courseId, isInstructor }: LiveClassroomP
       const stream = await navigator.mediaDevices.getDisplayMedia({ video: true });
       setScreenStream(stream);
       
-      if (pc.current) {
+      // If already live, update the broadcast
+      if (pc.current && isLive) {
         stream.getTracks().forEach(track => pc.current?.addTrack(track, stream));
         const offer = await pc.current.createOffer();
         await pc.current.setLocalDescription(offer);
         if (sessionRef) {
           await updateDoc(sessionRef, { 
             offer: { sdp: offer.sdp, type: offer.type },
-            updatedAt: serverTimestamp(),
-            hasScreen: true
+            hasScreen: true,
+            updatedAt: serverTimestamp()
           });
         }
       }
@@ -101,7 +103,7 @@ export default function LiveClassroom({ courseId, isInstructor }: LiveClassroomP
         if (sessionRef) updateDoc(sessionRef, { hasScreen: false });
       };
     } catch (err) {
-      toast({ variant: "destructive", title: "Screen Error", description: "Could not share screen." });
+      toast({ variant: "destructive", title: "Screen Share Failed", description: "Could not access screen content." });
     }
   };
 
@@ -112,11 +114,13 @@ export default function LiveClassroom({ courseId, isInstructor }: LiveClassroomP
     const peer = new RTCPeerConnection(servers);
     pc.current = peer;
 
+    // Add local tracks
     localStream.getTracks().forEach(track => peer.addTrack(track, localStream));
     if (screenStream) {
       screenStream.getTracks().forEach(track => peer.addTrack(track, screenStream));
     }
 
+    // Signaling candidates (Outgoing)
     const callerCandidates = collection(sessionRef, 'callerCandidates');
     peer.onicecandidate = (event) => {
       if (event.candidate) addDoc(callerCandidates, event.candidate.toJSON());
@@ -124,6 +128,7 @@ export default function LiveClassroom({ courseId, isInstructor }: LiveClassroomP
 
     peer.onconnectionstatechange = () => setConnectionStatus(peer.connectionState as any);
 
+    // Create and set offer
     const offerDescription = await peer.createOffer();
     await peer.setLocalDescription(offerDescription);
 
@@ -136,29 +141,33 @@ export default function LiveClassroom({ courseId, isInstructor }: LiveClassroomP
       hasScreen: !!screenStream
     });
 
-    onSnapshot(sessionRef, async (snapshot) => {
+    // Listen for Answer
+    const unsubscribe = onSnapshot(sessionRef, async (snapshot) => {
       const data = snapshot.data();
       if (!peer.currentRemoteDescription && data?.answer) {
-        await peer.setRemoteDescription(new RTCSessionDescription(data.answer));
-        while (candidateQueue.current.length > 0) {
-          await peer.addIceCandidate(new RTCIceCandidate(candidateQueue.current.shift()));
-        }
+        const answerDescription = new RTCSessionDescription(data.answer);
+        await peer.setRemoteDescription(answerDescription);
       }
     });
 
+    // Handle incoming ICE candidates
     const calleeCandidates = collection(sessionRef, 'calleeCandidates');
     onSnapshot(calleeCandidates, (snap) => {
       snap.docChanges().forEach(async (change) => {
         if (change.type === 'added') {
-          const candidate = change.doc.data();
-          if (peer.remoteDescription) await peer.addIceCandidate(new RTCIceCandidate(candidate));
-          else candidateQueue.current.push(candidate);
+          const candidate = new RTCIceCandidate(change.doc.data());
+          if (peer.remoteDescription) {
+            await peer.addIceCandidate(candidate);
+          } else {
+            candidateQueue.current.push(candidate);
+          }
         }
       });
     });
 
     setIsSignaling(false);
     setIsLive(true);
+    return () => unsubscribe();
   };
 
   const joinClass = async () => {
@@ -169,39 +178,46 @@ export default function LiveClassroom({ courseId, isInstructor }: LiveClassroomP
     const peer = new RTCPeerConnection(servers);
     pc.current = peer;
 
+    // Handle Incoming Streams
     peer.ontrack = (event) => {
       const stream = event.streams[0];
       if (event.track.kind === 'video') {
-        // Instructor usually sends Camera first, then Screen if toggled
-        // We use a simple ID mapping or sequential logic
-        if (!studentPrimaryRef.current?.srcObject) {
-            studentPrimaryRef.current!.srcObject = stream;
-        } else if (studentPrimaryRef.current.srcObject !== stream && !studentPipRef.current?.srcObject) {
-            studentPipRef.current!.srcObject = stream;
+        // If teacher is sharing screen, the first stream is often the camera and the second is screen
+        // But we rely on hasScreen flag to help route
+        if (!primaryVideoRef.current?.srcObject) {
+          primaryVideoRef.current!.srcObject = stream;
+        } else if (primaryVideoRef.current.srcObject !== stream && !pipVideoRef.current?.srcObject) {
+          pipVideoRef.current!.srcObject = stream;
         }
       }
     };
 
     peer.onconnectionstatechange = () => setConnectionStatus(peer.connectionState as any);
 
+    // Candidates
     const calleeCandidates = collection(sessionRef, 'calleeCandidates');
     peer.onicecandidate = (event) => {
       if (event.candidate) addDoc(calleeCandidates, event.candidate.toJSON());
     };
 
+    // Handshake
     await peer.setRemoteDescription(new RTCSessionDescription(sessionData.offer));
     const answer = await peer.createAnswer();
     await peer.setLocalDescription(answer);
 
     await updateDoc(sessionRef, { answer: { type: answer.type, sdp: answer.sdp } });
 
+    // Process buffered candidates
     const callerCandidates = collection(sessionRef, 'callerCandidates');
     onSnapshot(callerCandidates, (snap) => {
       snap.docChanges().forEach(async (change) => {
         if (change.type === 'added') {
-          const candidate = change.doc.data();
-          if (peer.remoteDescription) await peer.addIceCandidate(new RTCIceCandidate(candidate));
-          else candidateQueue.current.push(candidate);
+          const candidate = new RTCIceCandidate(change.doc.data());
+          if (peer.remoteDescription) {
+            await peer.addIceCandidate(candidate);
+          } else {
+            candidateQueue.current.push(candidate);
+          }
         }
       });
     });
@@ -236,9 +252,9 @@ export default function LiveClassroom({ courseId, isInstructor }: LiveClassroomP
           </Badge>
           <div>
             <h2 className="text-xl font-bold font-headline">
-              {active ? `Instructor: ${sessionData.instructorName}` : "Classroom is currently offline"}
+              {active ? `Instructor: ${sessionData.instructorName}` : "Wait for instructor to go live"}
             </h2>
-            <p className="text-xs text-muted-foreground mt-1 capitalize">Status: {connectionStatus}</p>
+            <p className="text-xs text-muted-foreground mt-1 capitalize">Network: {connectionStatus}</p>
           </div>
         </div>
         
@@ -254,24 +270,24 @@ export default function LiveClassroom({ courseId, isInstructor }: LiveClassroomP
                   <Button onClick={initScreenShare} variant="outline" className={cn(screenStream && "bg-primary/10")}>
                     <Monitor className="mr-2 h-4 w-4" /> {screenStream ? "Screen Ready" : "Share Screen"}
                   </Button>
-                  <Button onClick={startBroadcast} disabled={isSignaling} className="bg-red-600 hover:bg-red-700 text-white">
-                    {isSignaling ? <Loader2 className="animate-spin" /> : <Video className="mr-2 h-4 w-4" />} Start Lesson
+                  <Button onClick={startBroadcast} disabled={isSignaling} className="bg-red-600 hover:bg-red-700 text-white shadow-lg">
+                    {isSignaling ? <Loader2 className="animate-spin" /> : <Video className="mr-2 h-4 w-4" />} Go Live
                   </Button>
                 </>
               ) : (
                 <>
-                   <Button onClick={initScreenShare} variant="secondary">
-                    <Monitor className="mr-2 h-4 w-4" /> {screenStream ? "Stop Screen" : "Share Screen"}
+                   <Button onClick={initScreenShare} variant="secondary" size="sm">
+                    <Monitor className="mr-2 h-4 w-4" /> {screenStream ? "Stop Sharing" : "Share Screen"}
                   </Button>
-                  <Button variant="destructive" onClick={endBroadcast}>
-                    <LogOut className="mr-2 h-4 w-4" /> End Class
+                  <Button variant="destructive" size="sm" onClick={endBroadcast}>
+                    <LogOut className="mr-2 h-4 w-4" /> End Session
                   </Button>
                 </>
               )}
             </>
           ) : (
             active && connectionStatus === 'idle' && (
-              <Button onClick={joinClass} disabled={isSignaling} className="bg-green-600 hover:bg-green-700 text-white px-8 rounded-full shadow-lg">
+              <Button onClick={joinClass} disabled={isSignaling} className="bg-green-600 hover:bg-green-700 text-white px-8 rounded-full">
                 {isSignaling ? <Loader2 className="animate-spin" /> : <Play className="mr-2 h-5 w-5" />} Join Class
               </Button>
             )
@@ -281,23 +297,23 @@ export default function LiveClassroom({ courseId, isInstructor }: LiveClassroomP
 
       <div className="grid lg:grid-cols-[1fr_300px] gap-6">
         <div className="relative group">
-          <div className="relative aspect-video bg-neutral-900 rounded-2xl overflow-hidden border-4 border-muted shadow-2xl">
-            {/* Primary View */}
+          <div className="relative aspect-video bg-neutral-900 rounded-2xl overflow-hidden border-2 border-muted shadow-2xl">
+            {/* Main Stage */}
             <video 
-              ref={isInstructor ? instructorPrimaryRef : studentPrimaryRef} 
+              ref={primaryVideoRef} 
               className="w-full h-full object-contain" 
               autoPlay 
               muted 
               playsInline 
             />
 
-            {/* Picture-in-Picture View (Camera) */}
+            {/* Picture-in-Picture (Face Camera) */}
             <div className={cn(
-                "absolute bottom-4 right-4 w-48 aspect-video bg-black rounded-lg border-2 border-white/20 shadow-xl overflow-hidden transition-opacity",
-                ((isInstructor && screenStream) || (!isInstructor && sessionData?.hasScreen)) ? "opacity-100" : "opacity-0 pointer-events-none"
+                "absolute bottom-4 right-4 w-48 aspect-video bg-black rounded-lg border-2 border-white/20 shadow-xl overflow-hidden transition-all duration-300",
+                ((isInstructor && screenStream) || (!isInstructor && sessionData?.hasScreen)) ? "opacity-100 scale-100" : "opacity-0 scale-90 pointer-events-none"
             )}>
               <video 
-                ref={isInstructor ? instructorPipRef : studentPipRef} 
+                ref={pipVideoRef} 
                 className="w-full h-full object-cover" 
                 autoPlay 
                 muted 
@@ -308,7 +324,7 @@ export default function LiveClassroom({ courseId, isInstructor }: LiveClassroomP
             {!isInstructor && !active && (
               <div className="absolute inset-0 flex flex-col items-center justify-center text-white bg-neutral-950/90 backdrop-blur-sm">
                 <VideoOff className="h-16 w-16 mb-4 text-neutral-600" />
-                <p className="text-xl font-bold font-headline">Waiting for instructor...</p>
+                <p className="text-xl font-bold font-headline">Classroom is currently closed</p>
               </div>
             )}
           </div>
@@ -316,17 +332,22 @@ export default function LiveClassroom({ courseId, isInstructor }: LiveClassroomP
 
         <div className="space-y-4">
           <Card>
-            <CardHeader className="pb-3"><CardTitle className="text-sm font-headline uppercase text-muted-foreground">Session Tools</CardTitle></CardHeader>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
+                <Users className="h-4 w-4" /> Control Panel
+              </CardTitle>
+            </CardHeader>
             <CardContent className="space-y-3">
-               <Button className="w-full" variant="outline" onClick={() => {
-                   document.querySelectorAll('video').forEach(v => v.muted = false);
-                   toast({ title: "Audio Active", description: "Audio is now unmuted." });
+               <Button className="w-full" variant="outline" size="sm" onClick={() => {
+                   if (primaryVideoRef.current) primaryVideoRef.current.muted = false;
+                   if (pipVideoRef.current) pipVideoRef.current.muted = false;
+                   toast({ title: "Audio Active", description: "Video is now unmuted." });
                }}>
-                   <Mic className="mr-2 h-4 w-4" /> Unmute Audio
+                   <Mic className="mr-2 h-4 w-4" /> Unmute Instructor
                </Button>
-               <div className="p-3 bg-primary/5 rounded-lg border text-xs text-muted-foreground">
-                   <p className="font-bold text-primary mb-1">Network: {connectionStatus}</p>
-                   If the video freezes, try clicking the "Unmute" button or rejoin the class.
+               <div className="p-3 bg-primary/5 rounded-lg border text-[10px] leading-relaxed text-muted-foreground">
+                   <p className="font-bold text-primary mb-1">Tips for a better experience:</p>
+                   If you see a black screen, click "Unmute Instructor" or refresh the page. This is usually caused by browser autoplay restrictions.
                </div>
             </CardContent>
           </Card>
