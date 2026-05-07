@@ -3,11 +3,11 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useUser, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
-import { doc, setDoc, deleteDoc, serverTimestamp, collection, addDoc, onSnapshot, updateDoc, DocumentReference } from 'firebase/firestore';
+import { doc, setDoc, deleteDoc, serverTimestamp, collection, addDoc, onSnapshot, updateDoc } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, Video, VideoOff, LogOut, Users, Play, AlertCircle, Camera, Monitor, MonitorOff } from 'lucide-react';
+import { Loader2, Video, VideoOff, LogOut, Users, Play, AlertCircle, Camera, Monitor, Mic } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -31,10 +31,13 @@ export default function LiveClassroom({ courseId, isInstructor }: LiveClassroomP
   const firestore = useFirestore();
   const { toast } = useToast();
   
-  const localVideoRef = useRef<HTMLVideoElement>(null);
-  const screenVideoRef = useRef<HTMLVideoElement>(null);
-  const remoteVideoRef = useRef<HTMLVideoElement>(null);
-  const remoteScreenRef = useRef<HTMLVideoElement>(null);
+  // Dedicated refs for Instructor
+  const instructorPrimaryRef = useRef<HTMLVideoElement>(null);
+  const instructorPipRef = useRef<HTMLVideoElement>(null);
+  
+  // Dedicated refs for Student
+  const studentPrimaryRef = useRef<HTMLVideoElement>(null);
+  const studentPipRef = useRef<HTMLVideoElement>(null);
   
   const pc = useRef<RTCPeerConnection | null>(null);
   
@@ -51,21 +54,19 @@ export default function LiveClassroom({ courseId, isInstructor }: LiveClassroomP
   }, [firestore, courseId]);
 
   const { data: sessionData } = useDoc(sessionRef);
-
-  // Buffer for ICE candidates arriving before remote description is set
   const candidateQueue = useRef<any[]>([]);
 
+  // Instructor: Attach streams to video elements
   useEffect(() => {
-    if (localStream && localVideoRef.current) {
-      localVideoRef.current.srcObject = localStream;
-    }
-  }, [localStream]);
+    if (!isInstructor) return;
 
-  useEffect(() => {
-    if (screenStream && screenVideoRef.current) {
-      screenVideoRef.current.srcObject = screenStream;
+    if (screenStream) {
+      if (instructorPrimaryRef.current) instructorPrimaryRef.current.srcObject = screenStream;
+      if (instructorPipRef.current) instructorPipRef.current.srcObject = localStream;
+    } else {
+      if (instructorPrimaryRef.current) instructorPrimaryRef.current.srcObject = localStream;
     }
-  }, [screenStream]);
+  }, [isInstructor, localStream, screenStream]);
 
   const initCamera = async () => {
     try {
@@ -82,27 +83,23 @@ export default function LiveClassroom({ courseId, isInstructor }: LiveClassroomP
       const stream = await navigator.mediaDevices.getDisplayMedia({ video: true });
       setScreenStream(stream);
       
-      // If already live, add tracks to existing peer connection
       if (pc.current) {
-        stream.getTracks().forEach(track => {
-          pc.current?.addTrack(track, stream);
-        });
-        // Re-negotiate
+        stream.getTracks().forEach(track => pc.current?.addTrack(track, stream));
         const offer = await pc.current.createOffer();
         await pc.current.setLocalDescription(offer);
         if (sessionRef) {
           await updateDoc(sessionRef, { 
             offer: { sdp: offer.sdp, type: offer.type },
-            updatedAt: serverTimestamp()
+            updatedAt: serverTimestamp(),
+            hasScreen: true
           });
         }
       }
       
       stream.getVideoTracks()[0].onended = () => {
         setScreenStream(null);
+        if (sessionRef) updateDoc(sessionRef, { hasScreen: false });
       };
-      
-      toast({ title: "Screen Sharing", description: "Your screen is now being shared." });
     } catch (err) {
       toast({ variant: "destructive", title: "Screen Error", description: "Could not share screen." });
     }
@@ -122,9 +119,7 @@ export default function LiveClassroom({ courseId, isInstructor }: LiveClassroomP
 
     const callerCandidates = collection(sessionRef, 'callerCandidates');
     peer.onicecandidate = (event) => {
-      if (event.candidate) {
-        addDoc(callerCandidates, event.candidate.toJSON());
-      }
+      if (event.candidate) addDoc(callerCandidates, event.candidate.toJSON());
     };
 
     peer.onconnectionstatechange = () => setConnectionStatus(peer.connectionState as any);
@@ -144,12 +139,9 @@ export default function LiveClassroom({ courseId, isInstructor }: LiveClassroomP
     onSnapshot(sessionRef, async (snapshot) => {
       const data = snapshot.data();
       if (!peer.currentRemoteDescription && data?.answer) {
-        const answer = new RTCSessionDescription(data.answer);
-        await peer.setRemoteDescription(answer);
-        // Process queued candidates
+        await peer.setRemoteDescription(new RTCSessionDescription(data.answer));
         while (candidateQueue.current.length > 0) {
-          const candidate = candidateQueue.current.shift();
-          await peer.addIceCandidate(new RTCIceCandidate(candidate));
+          await peer.addIceCandidate(new RTCIceCandidate(candidateQueue.current.shift()));
         }
       }
     });
@@ -159,18 +151,14 @@ export default function LiveClassroom({ courseId, isInstructor }: LiveClassroomP
       snap.docChanges().forEach(async (change) => {
         if (change.type === 'added') {
           const candidate = change.doc.data();
-          if (peer.remoteDescription) {
-            await peer.addIceCandidate(new RTCIceCandidate(candidate));
-          } else {
-            candidateQueue.current.push(candidate);
-          }
+          if (peer.remoteDescription) await peer.addIceCandidate(new RTCIceCandidate(candidate));
+          else candidateQueue.current.push(candidate);
         }
       });
     });
 
     setIsSignaling(false);
     setIsLive(true);
-    toast({ title: 'Class Started', description: 'Students can now join.' });
   };
 
   const joinClass = async () => {
@@ -182,17 +170,14 @@ export default function LiveClassroom({ courseId, isInstructor }: LiveClassroomP
     pc.current = peer;
 
     peer.ontrack = (event) => {
-      const streams = event.streams;
-      if (streams && streams[0]) {
-        // Simple logic: first stream is camera, second (if any) is screen
-        if (event.track.kind === 'video') {
-            const streamId = streams[0].id;
-            // Map streams to players
-            if (!remoteVideoRef.current?.srcObject) {
-                remoteVideoRef.current!.srcObject = streams[0];
-            } else if (remoteVideoRef.current?.srcObject !== streams[0] && !remoteScreenRef.current?.srcObject) {
-                remoteScreenRef.current!.srcObject = streams[0];
-            }
+      const stream = event.streams[0];
+      if (event.track.kind === 'video') {
+        // Instructor usually sends Camera first, then Screen if toggled
+        // We use a simple ID mapping or sequential logic
+        if (!studentPrimaryRef.current?.srcObject) {
+            studentPrimaryRef.current!.srcObject = stream;
+        } else if (studentPrimaryRef.current.srcObject !== stream && !studentPipRef.current?.srcObject) {
+            studentPipRef.current!.srcObject = stream;
         }
       }
     };
@@ -201,27 +186,22 @@ export default function LiveClassroom({ courseId, isInstructor }: LiveClassroomP
 
     const calleeCandidates = collection(sessionRef, 'calleeCandidates');
     peer.onicecandidate = (event) => {
-      if (event.candidate) {
-        addDoc(calleeCandidates, event.candidate.toJSON());
-      }
+      if (event.candidate) addDoc(calleeCandidates, event.candidate.toJSON());
     };
 
     await peer.setRemoteDescription(new RTCSessionDescription(sessionData.offer));
-    const answerDescription = await peer.createAnswer();
-    await peer.setLocalDescription(answerDescription);
+    const answer = await peer.createAnswer();
+    await peer.setLocalDescription(answer);
 
-    await updateDoc(sessionRef, { answer: { type: answerDescription.type, sdp: answerDescription.sdp } });
+    await updateDoc(sessionRef, { answer: { type: answer.type, sdp: answer.sdp } });
 
     const callerCandidates = collection(sessionRef, 'callerCandidates');
-    onSnapshot(callerCandidates, (snapshot) => {
-      snapshot.docChanges().forEach(async (change) => {
+    onSnapshot(callerCandidates, (snap) => {
+      snap.docChanges().forEach(async (change) => {
         if (change.type === 'added') {
           const candidate = change.doc.data();
-          if (peer.remoteDescription) {
-            await peer.addIceCandidate(new RTCIceCandidate(candidate));
-          } else {
-            candidateQueue.current.push(candidate);
-          }
+          if (peer.remoteDescription) await peer.addIceCandidate(new RTCIceCandidate(candidate));
+          else candidateQueue.current.push(candidate);
         }
       });
     });
@@ -256,12 +236,9 @@ export default function LiveClassroom({ courseId, isInstructor }: LiveClassroomP
           </Badge>
           <div>
             <h2 className="text-xl font-bold font-headline">
-              {active ? `Live Class: ${sessionData.instructorName}` : "Classroom is currently offline"}
+              {active ? `Instructor: ${sessionData.instructorName}` : "Classroom is currently offline"}
             </h2>
-            <div className="flex items-center gap-2 mt-1">
-               <div className={cn("h-2 w-2 rounded-full", connectionStatus === 'connected' ? "bg-green-500" : "bg-neutral-300")} />
-               <p className="text-xs text-muted-foreground capitalize">{connectionStatus}</p>
-            </div>
+            <p className="text-xs text-muted-foreground mt-1 capitalize">Status: {connectionStatus}</p>
           </div>
         </div>
         
@@ -284,7 +261,7 @@ export default function LiveClassroom({ courseId, isInstructor }: LiveClassroomP
               ) : (
                 <>
                    <Button onClick={initScreenShare} variant="secondary">
-                    <Monitor className="mr-2 h-4 w-4" /> Update Screen
+                    <Monitor className="mr-2 h-4 w-4" /> {screenStream ? "Stop Screen" : "Share Screen"}
                   </Button>
                   <Button variant="destructive" onClick={endBroadcast}>
                     <LogOut className="mr-2 h-4 w-4" /> End Class
@@ -294,8 +271,8 @@ export default function LiveClassroom({ courseId, isInstructor }: LiveClassroomP
             </>
           ) : (
             active && connectionStatus === 'idle' && (
-              <Button onClick={joinClass} disabled={isSignaling} className="bg-green-600 hover:bg-green-700 text-white h-12 px-8 text-lg rounded-full shadow-lg hover:scale-105 transition-all">
-                {isSignaling ? <Loader2 className="animate-spin" /> : <Play className="mr-2 h-5 w-5" />} Join Live Lesson
+              <Button onClick={joinClass} disabled={isSignaling} className="bg-green-600 hover:bg-green-700 text-white px-8 rounded-full shadow-lg">
+                {isSignaling ? <Loader2 className="animate-spin" /> : <Play className="mr-2 h-5 w-5" />} Join Class
               </Button>
             )
           )}
@@ -304,87 +281,55 @@ export default function LiveClassroom({ courseId, isInstructor }: LiveClassroomP
 
       <div className="grid lg:grid-cols-[1fr_300px] gap-6">
         <div className="relative group">
-          {/* Primary View (Screen or Camera) */}
           <div className="relative aspect-video bg-neutral-900 rounded-2xl overflow-hidden border-4 border-muted shadow-2xl">
-            {isInstructor ? (
-              <video ref={screenStream ? screenVideoRef : localVideoRef} className="w-full h-full object-contain" autoPlay muted playsInline />
-            ) : (
-              <video ref={remoteScreenRef.current?.srcObject ? remoteScreenRef : remoteVideoRef} className="w-full h-full object-contain" autoPlay playsInline muted />
-            )}
+            {/* Primary View */}
+            <video 
+              ref={isInstructor ? instructorPrimaryRef : studentPrimaryRef} 
+              className="w-full h-full object-contain" 
+              autoPlay 
+              muted 
+              playsInline 
+            />
 
-            {/* Picture-in-Picture for Face Cam if Screen Sharing */}
-            {(isInstructor ? !!(screenStream && localStream) : !!(remoteScreenRef.current?.srcObject && remoteVideoRef.current?.srcObject)) && (
-               <div className="absolute bottom-4 right-4 w-48 aspect-video bg-black rounded-lg border-2 border-white/20 shadow-xl overflow-hidden z-10">
-                  {isInstructor ? (
-                    <video ref={localVideoRef} className="w-full h-full object-cover" autoPlay muted playsInline />
-                  ) : (
-                    <video ref={remoteVideoRef} className="w-full h-full object-cover" autoPlay playsInline muted />
-                  )}
-               </div>
-            )}
+            {/* Picture-in-Picture View (Camera) */}
+            <div className={cn(
+                "absolute bottom-4 right-4 w-48 aspect-video bg-black rounded-lg border-2 border-white/20 shadow-xl overflow-hidden transition-opacity",
+                ((isInstructor && screenStream) || (!isInstructor && sessionData?.hasScreen)) ? "opacity-100" : "opacity-0 pointer-events-none"
+            )}>
+              <video 
+                ref={isInstructor ? instructorPipRef : studentPipRef} 
+                className="w-full h-full object-cover" 
+                autoPlay 
+                muted 
+                playsInline 
+              />
+            </div>
 
             {!isInstructor && !active && (
               <div className="absolute inset-0 flex flex-col items-center justify-center text-white bg-neutral-950/90 backdrop-blur-sm">
                 <VideoOff className="h-16 w-16 mb-4 text-neutral-600" />
-                <p className="text-xl font-bold font-headline">Waiting for teacher to start...</p>
-                <p className="text-neutral-500 mt-2">The video feed will appear here once the class begins.</p>
-              </div>
-            )}
-
-            {isInstructor && !localStream && (
-              <div className="absolute inset-0 flex flex-col items-center justify-center text-white bg-neutral-950/90 backdrop-blur-sm">
-                <Camera className="h-16 w-16 mb-4 text-neutral-600" />
-                <p className="text-xl font-bold font-headline">Setup Your Camera</p>
-                <Button onClick={initCamera} variant="secondary" className="mt-6 rounded-full px-8">Enable Camera Access</Button>
+                <p className="text-xl font-bold font-headline">Waiting for instructor...</p>
               </div>
             )}
           </div>
-          
-          {active && connectionStatus === 'connected' && !isInstructor && (
-             <div className="absolute top-4 left-4">
-                <Badge className="bg-black/50 backdrop-blur-md text-white border-white/20">
-                    <Users className="w-3 h-3 mr-2" /> Live Stream Active
-                </Badge>
-             </div>
-          )}
         </div>
 
         <div className="space-y-4">
-          <Card className="border-none shadow-md">
-            <CardHeader className="pb-3"><CardTitle className="text-sm font-headline uppercase tracking-wider text-muted-foreground">Session Statistics</CardTitle></CardHeader>
-            <CardContent className="text-sm space-y-4">
-              <div className="flex justify-between items-center py-2 border-b">
-                <span className="text-muted-foreground">Your Role</span>
-                <Badge variant="outline" className="font-bold">{isInstructor ? 'Instructor' : 'Student'}</Badge>
-              </div>
-              <div className="flex justify-between items-center py-2 border-b">
-                <span className="text-muted-foreground">Network State</span>
-                <span className="font-mono text-xs uppercase font-bold text-primary">{connectionStatus}</span>
-              </div>
-              <div className="flex justify-between items-center py-2">
-                <span className="text-muted-foreground">Sharing Screen</span>
-                <span className="font-bold">{ (isInstructor ? !!screenStream : !!remoteScreenRef.current?.srcObject) ? 'Yes' : 'No' }</span>
-              </div>
+          <Card>
+            <CardHeader className="pb-3"><CardTitle className="text-sm font-headline uppercase text-muted-foreground">Session Tools</CardTitle></CardHeader>
+            <CardContent className="space-y-3">
+               <Button className="w-full" variant="outline" onClick={() => {
+                   document.querySelectorAll('video').forEach(v => v.muted = false);
+                   toast({ title: "Audio Active", description: "Audio is now unmuted." });
+               }}>
+                   <Mic className="mr-2 h-4 w-4" /> Unmute Audio
+               </Button>
+               <div className="p-3 bg-primary/5 rounded-lg border text-xs text-muted-foreground">
+                   <p className="font-bold text-primary mb-1">Network: {connectionStatus}</p>
+                   If the video freezes, try clicking the "Unmute" button or rejoin the class.
+               </div>
             </CardContent>
           </Card>
-          
-          <Alert className="bg-primary/5 border-primary/20">
-            <AlertCircle className="h-4 w-4 text-primary" />
-            <AlertTitle className="text-primary font-bold">Pro Tip</AlertTitle>
-            <AlertDescription className="text-xs leading-relaxed">
-              If the video feed looks frozen, try toggling your camera or re-joining the session. Browser security may occasionally block initial playback.
-            </AlertDescription>
-          </Alert>
-          
-          {active && !isInstructor && connectionStatus === 'connected' && (
-            <Button className="w-full" variant="secondary" onClick={() => {
-                const audios = document.querySelectorAll('video');
-                audios.forEach(v => v.muted = false);
-                toast({ title: "Audio Enabled", description: "You can now hear the instructor." });
-            }}>
-                Unmute Audio
-            </Button>
-          )}
         </div>
       </div>
     </div>
