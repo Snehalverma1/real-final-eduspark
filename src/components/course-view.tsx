@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useMemo, useEffect } from "react";
@@ -124,16 +123,21 @@ export default function CourseView({ course }: { course: Course }) {
 
   const getVideoEmbedUrl = (url: string): string => {
     if (!url) return "";
-    const vimeoRegex = /vimeo\.com\/(\d+)/;
+    
+    // Improved Vimeo Regex to handle more formats including player.vimeo.com
+    const vimeoRegex = /(?:vimeo\.com\/|player\.vimeo\.com\/video\/)(\d+)/;
     const vimeoMatch = url.match(vimeoRegex);
     if (vimeoMatch && vimeoMatch[1]) {
       return `https://player.vimeo.com/video/${vimeoMatch[1]}?autoplay=1&title=0&byline=0&portrait=0`;
     }
+    
+    // Improved YouTube Regex
     const youtubeRegex = /(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/ ]{11})/;
     const youtubeMatch = url.match(youtubeRegex);
     if (youtubeMatch && youtubeMatch[1]) {
         return `https://www.youtube.com/embed/${youtubeMatch[1]}`;
     }
+    
     return url;
   };
 
