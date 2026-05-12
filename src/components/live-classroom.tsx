@@ -23,7 +23,7 @@ export default function LiveClassroom({ courseId, isInstructor }: LiveClassroomP
   const firestore = useFirestore();
   const { toast } = useToast();
   
-  const [youtubeUrl, setYoutubeUrl] = useState('');
+  const [streamUrl, setStreamUrl] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const sessionId = 'active_session';
@@ -34,23 +34,39 @@ export default function LiveClassroom({ courseId, isInstructor }: LiveClassroomP
 
   const { data: sessionData, isLoading: isSessionLoading } = useDoc(sessionRef);
 
-  const getYouTubeEmbedUrl = (url: string) => {
+  const getVideoEmbedUrl = (url: string) => {
     if (!url) return null;
-    // Standard YouTube URL parsing
-    const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
-    const match = url.match(regExp);
-    return (match && match[2].length === 11) ? `https://www.youtube.com/embed/${match[2]}?autoplay=1` : null;
+
+    // YouTube Check
+    const youtubeRegex = /(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/ ]{11})/;
+    const youtubeMatch = url.match(youtubeRegex);
+    if (youtubeMatch && youtubeMatch[1]) {
+      return `https://www.youtube.com/embed/${youtubeMatch[1]}?autoplay=1`;
+    }
+
+    // Vimeo Check
+    const vimeoRegex = /(?:vimeo\.com\/|player\.vimeo\.com\/video\/)(?:channels\/(?:\w+\/)|groups\/(?:[^\/]*)\/videos\/|album\/(?:\d+)\/video\/|video\/|)(\d+)(?:\/(\w+))?/;
+    const vimeoMatch = url.match(vimeoRegex);
+    if (vimeoMatch) {
+      const videoId = vimeoMatch[1];
+      const hash = vimeoMatch[2];
+      let embed = `https://player.vimeo.com/video/${videoId}?autoplay=1&title=0&byline=0&portrait=0`;
+      if (hash) embed += `&h=${hash}`;
+      return embed;
+    }
+
+    return null;
   };
 
   const handleStartStream = async () => {
-    if (!sessionRef || !user || !youtubeUrl) {
-      toast({ variant: "destructive", title: "Missing URL", description: "Please enter your YouTube Live link." });
+    if (!sessionRef || !user || !streamUrl) {
+      toast({ variant: "destructive", title: "Missing URL", description: "Please enter your Live link." });
       return;
     }
 
-    const embedUrl = getYouTubeEmbedUrl(youtubeUrl);
+    const embedUrl = getVideoEmbedUrl(streamUrl);
     if (!embedUrl) {
-      toast({ variant: "destructive", title: "Invalid URL", description: "This does not look like a valid YouTube link." });
+      toast({ variant: "destructive", title: "Invalid URL", description: "Please provide a valid YouTube or Vimeo link." });
       return;
     }
 
@@ -61,7 +77,7 @@ export default function LiveClassroom({ courseId, isInstructor }: LiveClassroomP
         instructorId: user.uid,
         instructorName: user.displayName || 'Instructor',
         playbackUrl: embedUrl,
-        originalUrl: youtubeUrl,
+        originalUrl: streamUrl,
         createdAt: serverTimestamp(),
       });
       toast({ title: "Live Session Started!", description: "Students can now see your broadcast." });
@@ -77,7 +93,7 @@ export default function LiveClassroom({ courseId, isInstructor }: LiveClassroomP
       setIsSubmitting(true);
       try {
         await deleteDoc(sessionRef);
-        setYoutubeUrl('');
+        setStreamUrl('');
         toast({ title: "Stream Ended", description: "The session is now closed." });
       } catch (error) {
         toast({ variant: "destructive", title: "Error", description: "Could not end stream." });
@@ -91,7 +107,7 @@ export default function LiveClassroom({ courseId, isInstructor }: LiveClassroomP
     return (
       <div className="flex flex-col items-center justify-center p-12">
         <Loader2 className="h-10 w-10 animate-spin text-primary" />
-        <p className="text-muted-foreground mt-4">Connecting to YouTube...</p>
+        <p className="text-muted-foreground mt-4">Connecting to live feed...</p>
       </div>
     );
   }
@@ -109,7 +125,7 @@ export default function LiveClassroom({ courseId, isInstructor }: LiveClassroomP
               </Badge>
               <div>
                 <h2 className="text-xl font-bold font-headline">
-                  {sessionData?.status === 'active' ? `Broadcasting: ${sessionData.instructorName}` : "YouTube Live Stream"}
+                  {sessionData?.status === 'active' ? `Broadcasting: ${sessionData.instructorName}` : "Live Classroom Feed"}
                 </h2>
               </div>
             </div>
@@ -118,15 +134,15 @@ export default function LiveClassroom({ courseId, isInstructor }: LiveClassroomP
               <div className="flex flex-1 max-w-md items-end gap-2">
                 {!sessionData ? (
                   <div className="grid w-full gap-2">
-                    <Label htmlFor="youtube-url" className="text-xs font-bold uppercase text-muted-foreground">YouTube Live URL</Label>
+                    <Label htmlFor="live-url" className="text-xs font-bold uppercase text-muted-foreground">Video Stream URL (YouTube/Vimeo)</Label>
                     <div className="flex gap-2">
                       <Input 
-                        id="youtube-url"
-                        placeholder="Paste YouTube link here..." 
-                        value={youtubeUrl}
-                        onChange={(e) => setYoutubeUrl(e.target.value)}
+                        id="live-url"
+                        placeholder="Paste live link here..." 
+                        value={streamUrl}
+                        onChange={(e) => setStreamUrl(e.target.value)}
                       />
-                      <Button onClick={handleStartStream} disabled={isSubmitting || !youtubeUrl} className="bg-red-600 hover:bg-red-700">
+                      <Button onClick={handleStartStream} disabled={isSubmitting || !streamUrl} className="bg-red-600 hover:bg-red-700">
                         {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <><Video className="mr-2 h-4 w-4" /> Go Live</>}
                       </Button>
                     </div>
@@ -147,26 +163,33 @@ export default function LiveClassroom({ courseId, isInstructor }: LiveClassroomP
           <iframe
             className="w-full h-full"
             src={embedUrl}
-            title="YouTube Live Stream"
+            title="Live Stream"
             frameBorder="0"
             allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
             allowFullScreen
           ></iframe>
         ) : (
           <div className="absolute inset-0 flex flex-col items-center justify-center text-center p-8">
-            <Youtube className="h-20 w-20 text-muted-foreground/30 mb-6" />
+            <Video className="h-20 w-20 text-muted-foreground/30 mb-6" />
             <h3 className="text-2xl font-headline font-bold text-white">Stream is Offline</h3>
             <p className="text-muted-foreground max-w-sm mt-2">
               {isInstructor 
-                ? "Paste your YouTube link above to start the live class." 
+                ? "Paste your YouTube or Vimeo Live link above to start the session." 
                 : "The teacher hasn't started the stream yet. Please check back in a moment!"}
             </p>
             {isInstructor && (
-              <Button variant="outline" size="sm" className="mt-6" asChild>
-                <a href="https://studio.youtube.com/" target="_blank" rel="noopener noreferrer">
-                  <ExternalLink className="mr-2 h-4 w-4" /> Open YouTube Studio
-                </a>
-              </Button>
+              <div className="flex gap-4 mt-6">
+                <Button variant="outline" size="sm" asChild>
+                    <a href="https://studio.youtube.com/" target="_blank" rel="noopener noreferrer">
+                    <Youtube className="mr-2 h-4 w-4" /> YouTube Studio
+                    </a>
+                </Button>
+                 <Button variant="outline" size="sm" asChild>
+                    <a href="https://vimeo.com/live" target="_blank" rel="noopener noreferrer">
+                    <ExternalLink className="mr-2 h-4 w-4" /> Vimeo Live
+                    </a>
+                </Button>
+              </div>
             )}
           </div>
         )}
@@ -175,9 +198,9 @@ export default function LiveClassroom({ courseId, isInstructor }: LiveClassroomP
       <div className="p-4 bg-blue-500/5 rounded-xl border border-blue-500/10 flex items-start gap-3">
         <AlertCircle className="h-5 w-5 text-blue-500 shrink-0 mt-0.5" />
         <div className="text-sm">
-          <p className="font-semibold text-blue-700 dark:text-blue-400">Streaming Help</p>
+          <p className="font-semibold text-blue-700 dark:text-blue-400">Supported Platforms</p>
           <p className="text-muted-foreground mt-1">
-            Make sure your YouTube stream is set to <strong>Public</strong> or <strong>Unlisted</strong>. Private streams cannot be viewed by students here.
+            EduSpark supports <strong>YouTube</strong> and <strong>Vimeo</strong> live streams. Simply paste the URL from your browser's address bar.
           </p>
         </div>
       </div>

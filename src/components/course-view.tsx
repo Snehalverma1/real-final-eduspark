@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useMemo, useEffect } from "react";
@@ -124,18 +125,24 @@ export default function CourseView({ course }: { course: Course }) {
   const getVideoEmbedUrl = (url: string): string => {
     if (!url) return "";
     
-    // Improved Vimeo Regex to handle more formats including player.vimeo.com
-    const vimeoRegex = /(?:vimeo\.com\/|player\.vimeo\.com\/video\/)(\d+)/;
+    // Improved Vimeo Regex for various URL formats and private videos
+    const vimeoRegex = /(?:vimeo\.com\/|player\.vimeo\.com\/video\/)(?:channels\/(?:\w+\/)|groups\/(?:[^\/]*)\/videos\/|album\/(?:\d+)\/video\/|video\/|)(\d+)(?:\/(\w+))?/;
     const vimeoMatch = url.match(vimeoRegex);
-    if (vimeoMatch && vimeoMatch[1]) {
-      return `https://player.vimeo.com/video/${vimeoMatch[1]}?autoplay=1&title=0&byline=0&portrait=0`;
+    if (vimeoMatch) {
+      const videoId = vimeoMatch[1];
+      const hash = vimeoMatch[2];
+      let embedUrl = `https://player.vimeo.com/video/${videoId}?autoplay=1&title=0&byline=0&portrait=0`;
+      if (hash) {
+        embedUrl += `&h=${hash}`;
+      }
+      return embedUrl;
     }
     
-    // Improved YouTube Regex
+    // Robust YouTube Regex
     const youtubeRegex = /(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/ ]{11})/;
     const youtubeMatch = url.match(youtubeRegex);
     if (youtubeMatch && youtubeMatch[1]) {
-        return `https://www.youtube.com/embed/${youtubeMatch[1]}`;
+        return `https://www.youtube.com/embed/${youtubeMatch[1]}?autoplay=1`;
     }
     
     return url;
