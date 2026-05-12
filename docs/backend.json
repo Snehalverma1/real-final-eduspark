@@ -93,16 +93,18 @@
       "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "LiveSession",
       "type": "object",
-      "description": "Represents an active live teaching session for a course.",
+      "description": "Represents an active YouTube Live teaching session for a course.",
       "properties": {
         "id": { "type": "string" },
         "courseId": { "type": "string" },
         "instructorId": { "type": "string" },
         "instructorName": { "type": "string" },
         "status": { "type": "string", "enum": ["active", "ended"] },
+        "playbackUrl": { "type": "string", "description": "The YouTube embed URL." },
+        "originalUrl": { "type": "string", "description": "The original YouTube link." },
         "createdAt": { "type": "string", "format": "date-time" }
       },
-      "required": ["id", "courseId", "instructorId", "status", "createdAt"]
+      "required": ["id", "courseId", "instructorId", "status", "playbackUrl", "createdAt"]
     },
     "Category": {
       "$schema": "http://json-schema.org/draft-07/schema#",
