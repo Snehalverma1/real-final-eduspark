@@ -126,7 +126,7 @@ export default function CourseView({ course }: { course: Course }) {
     if (!url) return "";
     
     // Improved Vimeo Regex for various URL formats and private videos
-    const vimeoRegex = /(?:vimeo\.com\/|player\.vimeo\.com\/video\/)(?:channels\/(?:\w+\/)|groups\/(?:[^\/]*)\/videos\/|album\/(?:\d+)\/video\/|video\/|)(\d+)(?:\/(\w+))?/;
+    const vimeoRegex = /(?:vimeo\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|player\.vimeo\.com\/video\/|vimeo\.com\/)(?:channels\/(?:\w+\/)|groups\/(?:[^\/]*)\/videos\/|album\/(?:\d+)\/video\/|video\/|)(\d+)(?:\/(\w+))?/;
     const vimeoMatch = url.match(vimeoRegex);
     if (vimeoMatch) {
       const videoId = vimeoMatch[1];
@@ -138,8 +138,8 @@ export default function CourseView({ course }: { course: Course }) {
       return embedUrl;
     }
     
-    // Robust YouTube Regex
-    const youtubeRegex = /(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/ ]{11})/;
+    // Robust YouTube Regex including /live/ URLs
+    const youtubeRegex = /(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=|live\/)|youtu\.be\/)([^"&?\/ ]{11})/;
     const youtubeMatch = url.match(youtubeRegex);
     if (youtubeMatch && youtubeMatch[1]) {
         return `https://www.youtube.com/embed/${youtubeMatch[1]}?autoplay=1`;
