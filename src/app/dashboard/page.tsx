@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useUser, useFirestore, useCollection, useDoc, useMemoFirebase } from '@/firebase';
@@ -29,7 +28,7 @@ export default function TeacherDashboard() {
   const { data: courses, isLoading: areCoursesLoading } = useCollection(teacherCoursesQuery);
 
   const isLoading = isUserLoading || isProfileLoading;
-  const isTeacher = userProfile?.role === 'class-teacher' || userProfile?.role === 'subject-teacher';
+  const isTeacher = userProfile?.role === 'subject-teacher';
   const isApproved = userProfile?.applicationStatus === 'approved';
 
   if (isLoading) {
@@ -40,7 +39,7 @@ export default function TeacherDashboard() {
     );
   }
 
-  if (!user || !isTeacher) {
+  if (!user || (!isTeacher && userProfile?.role !== 'admin')) {
     return (
       <div className="container mx-auto p-8 text-center">
         <h1 className="text-3xl font-bold font-headline">Access Denied</h1>
@@ -57,7 +56,7 @@ export default function TeacherDashboard() {
           <h1 className="text-3xl md:text-4xl font-bold font-headline">Teacher Dashboard</h1>
           <p className="text-muted-foreground mt-1">Manage your courses and interact with students.</p>
         </div>
-        {isApproved ? (
+        {isApproved || userProfile?.role === 'admin' ? (
           <Button asChild size="lg">
             <Link href="/create-course">
               <PlusCircle className="mr-2 h-4 w-4" /> Create New Course
@@ -141,7 +140,7 @@ export default function TeacherDashboard() {
           <CardContent>
             <BookOpen className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
             <p className="text-muted-foreground">You haven't created any courses yet.</p>
-            {isApproved && (
+            {(isApproved || userProfile?.role === 'admin') && (
               <Button asChild className="mt-4">
                 <Link href="/create-course">Get Started</Link>
               </Button>

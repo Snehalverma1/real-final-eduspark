@@ -35,7 +35,7 @@ export default function TeacherApplications() {
     return query(
         collection(firestore, 'userProfiles'), 
         where('applicationStatus', '==', 'pending'),
-        where('role', 'in', ['subject-teacher', 'class-teacher'])
+        where('role', '==', 'subject-teacher')
     );
   }, [firestore, isAdmin]);
 
@@ -81,7 +81,7 @@ export default function TeacherApplications() {
   return (
     <Card className="border-none shadow-lg bg-card/50 backdrop-blur-sm">
       <CardHeader>
-        <CardTitle className="text-2xl font-headline">Pending Applications</CardTitle>
+        <CardTitle className="text-2xl font-headline">Pending Teacher Applications</CardTitle>
         <CardDescription>Review credentials for new teachers joining the platform.</CardDescription>
       </CardHeader>
       <CardContent>
@@ -96,8 +96,7 @@ export default function TeacherApplications() {
                 <TableHeader>
                     <TableRow className="hover:bg-transparent">
                     <TableHead>Teacher Info</TableHead>
-                    <TableHead>Role</TableHead>
-                    <TableHead>Experience / Class</TableHead>
+                    <TableHead>Experience</TableHead>
                     <TableHead className="text-right">Actions</TableHead>
                     </TableRow>
                 </TableHeader>
@@ -110,20 +109,11 @@ export default function TeacherApplications() {
                               <span className="text-xs text-muted-foreground">{app.email}</span>
                             </div>
                         </TableCell>
-                        <TableCell>
-                            <Badge variant={app.role === 'subject-teacher' ? 'default' : 'secondary'} className="capitalize">
-                                {app.role.replace('-', ' ')}
-                            </Badge>
-                        </TableCell>
                         <TableCell className="max-w-xs">
-                            {app.role === 'subject-teacher' ? (
                             <div className="text-sm">
                                 <p className="line-clamp-1"><span className="text-muted-foreground mr-1">Subjects:</span> {app.subjects?.join(', ') || 'N/A'}</p>
                                 <p className="line-clamp-1 mt-0.5 italic text-muted-foreground">{app.experience || 'No experience listed'}</p>
                             </div>
-                            ) : (
-                            <Badge variant="outline">Class {app.class}-{app.section}</Badge>
-                            )}
                         </TableCell>
                         <TableCell className="text-right">
                           <div className="flex justify-end gap-2">

@@ -1,4 +1,3 @@
-
 {
   "entities": {
     "UserProfile": {
@@ -35,7 +34,6 @@
           "description": "The role of the user on the platform.",
           "enum": [
             "student",
-            "class-teacher",
             "subject-teacher",
             "admin"
           ]
@@ -60,14 +58,6 @@
           "type": "string",
           "description": "For subject teachers, a summary of their teaching experience.",
           "format": "text"
-        },
-        "class": {
-          "type": "string",
-          "description": "For students and class teachers, the class they are associated with (e.g., '8', '10')."
-        },
-        "section": {
-          "type": "string",
-          "description": "For students and class teachers, the section of the class they are associated with (e.g., 'A', 'B')."
         },
         "createdAt": {
           "type": "string",

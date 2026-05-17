@@ -25,18 +25,14 @@ import { FirebaseError } from 'firebase/app';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Textarea } from '@/components/ui/textarea';
 import { doc, setDoc } from 'firebase/firestore';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-
 
 const formSchema = z.object({
   fullName: z.string().min(1, 'Full name is required.'),
   email: z.string().email('Please enter a valid email address.'),
   password: z.string().min(6, 'Password must be at least 6 characters.'),
-  role: z.enum(['student', 'class-teacher', 'subject-teacher'], {
+  role: z.enum(['student', 'subject-teacher'], {
     required_error: 'You need to select a role.',
   }),
-  class: z.string().optional(),
-  section: z.string().optional(),
   subjects: z.string().optional(),
   experience: z.string().optional(),
 })
@@ -54,23 +50,6 @@ const formSchema = z.object({
         code: z.ZodIssueCode.custom,
         path: ['experience'],
         message: 'Please describe your experience (at least 20 characters).',
-      });
-    }
-  }
-
-  if (data.role === 'class-teacher') {
-    if (!data.class) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ['class'],
-        message: 'Please select a class.',
-      });
-    }
-    if (!data.section) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ['section'],
-        message: 'Please select a section.',
       });
     }
   }
@@ -125,7 +104,7 @@ export default function SignupPage() {
         role: values.role,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
-        applicationStatus: (values.role === 'subject-teacher' || values.role === 'class-teacher') ? 'pending' : 'approved',
+        applicationStatus: values.role === 'subject-teacher' ? 'pending' : 'approved',
       };
       
       if (values.role === 'subject-teacher') {
@@ -133,16 +112,11 @@ export default function SignupPage() {
           userProfileData.experience = values.experience;
       }
       
-      if (values.role === 'class-teacher') {
-        userProfileData.class = values.class;
-        userProfileData.section = values.section;
-      }
-
       await setDoc(doc(firestore, 'userProfiles', userCredential.user.uid), userProfileData);
       
       toast({
         title: "Account Created",
-        description: (values.role === 'subject-teacher' || values.role === 'class-teacher') ? "Your application has been submitted for review." : "Your account has been created successfully.",
+        description: values.role === 'subject-teacher' ? "Your application has been submitted for review." : "Your account has been created successfully.",
       });
     } catch (error) {
       let title = "Sign Up Failed";
@@ -208,24 +182,16 @@ export default function SignupPage() {
                             <FormControl>
                               <RadioGroupItem value="student" />
                             </FormControl>
-                            <FormLabel className="font-normal">
+                            <FormLabel className="font-normal cursor-pointer">
                               Student
-                            </FormLabel>
-                          </FormItem>
-                          <FormItem className="flex items-center space-x-3 space-y-0">
-                            <FormControl>
-                              <RadioGroupItem value="class-teacher" />
-                            </FormControl>
-                            <FormLabel className="font-normal">
-                              Class Teacher
                             </FormLabel>
                           </FormItem>
                            <FormItem className="flex items-center space-x-3 space-y-0">
                             <FormControl>
                               <RadioGroupItem value="subject-teacher" />
                             </FormControl>
-                            <FormLabel className="font-normal">
-                              Subject Teacher
+                            <FormLabel className="font-normal cursor-pointer">
+                              Teacher
                             </FormLabel>
                           </FormItem>
                         </RadioGroup>
@@ -286,55 +252,6 @@ export default function SignupPage() {
                     )}
                   />
 
-                  {role === 'class-teacher' && (
-                    <div className="grid grid-cols-2 gap-4">
-                       <FormField
-                          control={form.control}
-                          name="class"
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel>Class</FormLabel>
-                              <Select onValueChange={field.onChange} defaultValue={field.value}>
-                                <FormControl>
-                                  <SelectTrigger>
-                                    <SelectValue placeholder="Select class" />
-                                  </SelectTrigger>
-                                </FormControl>
-                                <SelectContent>
-                                  {[...Array(12)].map((_, i) => (
-                                    <SelectItem key={i + 1} value={`${i + 1}`}>{i + 1}</SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-                         <FormField
-                          control={form.control}
-                          name="section"
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel>Section</FormLabel>
-                              <Select onValueChange={field.onChange} defaultValue={field.value}>
-                                <FormControl>
-                                  <SelectTrigger>
-                                    <SelectValue placeholder="Select section" />
-                                  </SelectTrigger>
-                                </FormControl>
-                                <SelectContent>
-                                  {['A', 'B', 'C', 'D'].map((sec) => (
-                                    <SelectItem key={sec} value={sec}>{sec}</SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-                    </div>
-                  )}
-
                   {role === 'subject-teacher' && (
                     <>
                       <FormField
@@ -342,7 +259,7 @@ export default function SignupPage() {
                         name="subjects"
                         render={({ field }) => (
                           <FormItem className="grid gap-2">
-                            <Label htmlFor="subjects">Subjects</Label>
+                            <Label htmlFor="subjects">Subjects You Teach</Label>
                             <FormControl>
                               <Input id="subjects" placeholder="e.g., Math, Science, History" required {...field} />
                             </FormControl>

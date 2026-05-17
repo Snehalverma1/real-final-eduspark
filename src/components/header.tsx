@@ -38,7 +38,7 @@ export default function Header() {
   const isLoading = isUserLoading || isProfileLoading;
   const isLoggedIn = !isUserLoading && user;
   const isAdmin = userProfile?.role === 'admin';
-  const isTeacher = userProfile?.role === 'class-teacher' || userProfile?.role === 'subject-teacher';
+  const isTeacher = userProfile?.role === 'subject-teacher';
   const isApproved = userProfile?.applicationStatus === 'approved';
   const canCreateCourse = (isTeacher || isAdmin) && (isApproved || isAdmin);
 
