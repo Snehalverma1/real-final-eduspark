@@ -58,7 +58,7 @@ const formSchema = z.object({
     }
   }
 
-  if (data.role === 'student' || data.role === 'class-teacher') {
+  if (data.role === 'class-teacher') {
     if (!data.class) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
@@ -133,7 +133,7 @@ export default function SignupPage() {
           userProfileData.experience = values.experience;
       }
       
-      if (values.role === 'student' || values.role === 'class-teacher') {
+      if (values.role === 'class-teacher') {
         userProfileData.class = values.class;
         userProfileData.section = values.section;
       }
@@ -144,7 +144,6 @@ export default function SignupPage() {
         title: "Account Created",
         description: (values.role === 'subject-teacher' || values.role === 'class-teacher') ? "Your application has been submitted for review." : "Your account has been created successfully.",
       });
-      // onAuthStateChanged will handle user state update and redirect
     } catch (error) {
       let title = "Sign Up Failed";
       let description = "An unexpected error occurred. Please try again.";
@@ -287,7 +286,7 @@ export default function SignupPage() {
                     )}
                   />
 
-                  {(role === 'student' || role === 'class-teacher') && (
+                  {role === 'class-teacher' && (
                     <div className="grid grid-cols-2 gap-4">
                        <FormField
                           control={form.control}

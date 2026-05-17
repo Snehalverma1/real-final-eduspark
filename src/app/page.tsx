@@ -21,25 +21,15 @@ export default function Home() {
   const coursesQuery = useMemoFirebase(() => {
     if (!firestore) return null;
     
-    // Don't construct query until we have user profile or know they are logged out.
+    // Don't construct query until we have auth state.
     if (isUserAuthLoading) return null;
-    if (user && isProfileLoading) return null;
 
-    // If user is a student, filter by their class
-    if (userProfile && userProfile.role === 'student' && userProfile.class) {
-      return query(
-        collection(firestore, 'courses'), 
-        where('status', '==', 'Published'),
-        where('targetClass', '==', userProfile.class)
-      );
-    }
-
-    // For non-students (teachers, admins) or anonymous users, show all published courses
+    // Show all published courses for everyone (simplified)
     return query(
         collection(firestore, 'courses'), 
         where('status', '==', 'Published')
     );
-  }, [firestore, user, userProfile, isUserAuthLoading, isProfileLoading]);
+  }, [firestore, isUserAuthLoading]);
 
   const { data: courses, isLoading: areCoursesLoading } = useCollection(coursesQuery);
   
@@ -50,7 +40,7 @@ export default function Home() {
     title: course.title,
     description: course.description,
     thumbnailUrl: course.thumbnailUrl,
-    thumbnailHint: `course ${course.id}`, // or some other logic
+    thumbnailHint: `course ${course.id}`,
     targetClass: course.targetClass,
     chapters: course.chapters,
     instructor: {
@@ -87,7 +77,7 @@ export default function Home() {
             ))}
           </div>
         ) : (
-          <p className="text-center text-muted-foreground">{ userProfile?.role === 'student' ? "No courses available for your class yet." : "No courses have been published yet." }</p>
+          <p className="text-center text-muted-foreground">No courses have been published yet.</p>
         )}
       </section>
     </div>
