@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useMemo } from 'react';
@@ -34,13 +35,21 @@ export default function CoursePage() {
         targetClass: courseData.targetClass,
         chapters: (courseData.chapters || []).map((chapter: any) => ({
           ...chapter,
+          // Ensure chapters have IDs for the Accordion to work correctly
+          id: chapter.id || `ch-${Math.random().toString(36).substr(2, 9)}`,
           lectures: (chapter.lectures || []).map((lecture: any) => {
-            const { durationSeconds, ...rest } = lecture;
+            // Handle both legacy durationSeconds and the new duration field
+            const duration = lecture.duration || Math.round((lecture.durationSeconds || 0) / 60);
             return {
-              ...rest,
-              duration: Math.round((durationSeconds || 0) / 60),
+              ...lecture,
+              id: lecture.id || `lec-${Math.random().toString(36).substr(2, 9)}`,
+              duration: duration || 0,
             };
           }),
+        })),
+        tests: (courseData.tests || []).map((test: any) => ({
+            ...test,
+            id: test.id || `test-${Math.random().toString(36).substr(2, 9)}`,
         })),
         instructor: {
           name: courseData.instructorName || 'Instructor',

@@ -113,6 +113,7 @@ export default function CreateCoursePage() {
     const courseId = doc(collection(firestore, 'courses')).id;
     const courseRef = doc(firestore, `courses`, courseId);
 
+    // Ensure all sub-items have unique IDs for proper retrieval and rendering
     const finalCourseData = {
       ...data,
       id: courseId,
@@ -123,6 +124,22 @@ export default function CreateCoursePage() {
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       thumbnailUrl: data.thumbnailUrl || `https://picsum.photos/seed/${courseId}/600/400`,
+      chapters: data.chapters.map((chapter, cIdx) => ({
+        ...chapter,
+        id: `ch-${cIdx}-${Date.now()}`,
+        lectures: chapter.lectures.map((lecture, lIdx) => ({
+          ...lecture,
+          id: `lec-${cIdx}-${lIdx}-${Date.now()}`,
+        }))
+      })),
+      tests: (data.tests || []).map((test, tIdx) => ({
+        ...test,
+        id: `test-${tIdx}-${Date.now()}`,
+        questions: test.questions.map((q, qIdx) => ({
+          ...q,
+          id: `q-${tIdx}-${qIdx}-${Date.now()}`,
+        }))
+      })),
     };
 
     setDoc(courseRef, finalCourseData)
