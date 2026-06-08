@@ -17,8 +17,8 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { PlusCircle, Trash2, Book, Film, Loader2, ShieldAlert, Layers, Sparkles, Image as ImageIcon, ClipboardList, CheckCircle2 } from "lucide-react";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { PlusCircle, Trash2, Book, Film, Loader2, ShieldAlert, Layers, Sparkles, Image as ImageIcon, ClipboardList, CheckCircle2, Globe } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useUser, useFirestore, useDoc, useMemoFirebase, errorEmitter, FirestorePermissionError } from "@/firebase";
 import { doc, collection, setDoc } from 'firebase/firestore';
@@ -139,33 +139,126 @@ export default function CreateCoursePage() {
 
   return (
     <div className="container mx-auto max-w-4xl p-4 md:p-8">
-      <h1 className="text-3xl font-bold font-headline mb-8">Publish New Course</h1>
+      <div className="mb-8">
+        <h1 className="text-3xl md:text-4xl font-bold font-headline">Publish New Program</h1>
+        <p className="text-muted-foreground mt-1">Design a world-class curriculum for Scholars aspirants.</p>
+      </div>
+
       <Form {...form}>
-        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
-          <Card>
-            <CardHeader><CardTitle>General Info</CardTitle></CardHeader>
-            <CardContent className="space-y-4">
-              <FormField control={form.control} name="title" render={({ field }) => <FormItem><FormLabel>Title</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>} />
-              <FormField control={form.control} name="category" render={({ field }) => <FormItem><FormLabel>Category</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select Category" /></SelectTrigger></FormControl><SelectContent>{categories.filter(c => c !== "All").map(cat => <SelectItem key={cat} value={cat}>{cat}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>} />
-              <FormField control={form.control} name="difficultyLevel" render={({ field }) => <FormItem><FormLabel>Difficulty</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl><SelectContent><SelectItem value="Beginner">Beginner</SelectItem><SelectItem value="Intermediate">Intermediate</SelectItem><SelectItem value="Advanced">Advanced</SelectItem></SelectContent></Select><FormMessage /></FormItem>} />
+        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-12">
+          {/* General Information Card */}
+          <Card className="rounded-3xl border-primary/10 shadow-xl overflow-hidden">
+            <CardHeader className="bg-primary/5 p-8 border-b">
+              <CardTitle className="flex items-center gap-2"><Layers className="text-primary h-6 w-6" /> General Information</CardTitle>
+              <CardDescription>Basic details about your exam-oriented course.</CardDescription>
+            </CardHeader>
+            <CardContent className="p-8 space-y-6">
+              <FormField control={form.control} name="title" render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Program Title</FormLabel>
+                  <FormControl><Input placeholder="e.g., SSC CGL 2024: Quantitative Aptitude Masterclass" className="h-12" {...field} /></FormControl>
+                  <FormMessage />
+                </FormItem>
+              )} />
+              
+              <div className="grid md:grid-cols-2 gap-6">
+                <FormField control={form.control} name="category" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Exam Category</FormLabel>
+                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                      <FormControl>
+                        <SelectTrigger className="h-12">
+                          <SelectValue placeholder="Target Exam" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {categories.filter(c => c !== "All").map(cat => <SelectItem key={cat} value={cat}>{cat}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )} />
+
+                <FormField control={form.control} name="difficultyLevel" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Difficulty Level</FormLabel>
+                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                      <FormControl>
+                        <SelectTrigger className="h-12">
+                          <SelectValue />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="Beginner">Beginner (Concept Foundation)</SelectItem>
+                        <SelectItem value="Intermediate">Intermediate (Problem Solving)</SelectItem>
+                        <SelectItem value="Advanced">Advanced (Rank Booster)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )} />
+              </div>
+
+              <FormField control={form.control} name="thumbnailUrl" render={({ field }) => (
+                <FormItem>
+                  <FormLabel className="flex items-center gap-2">
+                    <ImageIcon className="h-4 w-4" /> 
+                    Course Thumbnail URL (Optional)
+                  </FormLabel>
+                  <FormControl>
+                    <Input placeholder="https://images.unsplash.com/photo-..." className="h-12" {...field} />
+                  </FormControl>
+                  <FormDescription>
+                    Paste an image link for your cover. If left blank, we'll generate a professional placeholder.
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )} />
+
+              <FormField control={form.control} name="description" render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Program Overview</FormLabel>
+                  <FormControl>
+                    <Textarea placeholder="Describe the curriculum, strategy, and selection goal..." className="min-h-[120px]" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )} />
             </CardContent>
           </Card>
 
-          <div className="space-y-4">
-            <h2 className="text-xl font-bold flex items-center gap-2"><Book /> Chapters</h2>
+          {/* Curriculum Builder Section */}
+          <div className="space-y-6">
+            <h2 className="text-2xl font-bold font-headline flex items-center gap-2"><Book className="text-primary h-6 w-6" /> Curriculum Builder</h2>
             {chapterFields.map((chapter, index) => <ChapterForm key={chapter.id} chapterIndex={index} form={form} removeChapter={removeChapter} />)}
-            <Button type="button" variant="outline" onClick={() => appendChapter({ title: "", lectures: [{ lectureNumber: 1, title: "", type: "video", content: "", summary: "", duration: 15 }] })} className="w-full">Add Chapter</Button>
+            <Button type="button" variant="outline" onClick={() => appendChapter({ title: "New Chapter", lectures: [{ lectureNumber: 1, title: "", type: "video", content: "", summary: "", duration: 15 }] })} className="w-full h-14 border-dashed border-2 rounded-2xl">
+              <PlusCircle className="mr-2 h-5 w-5" /> Add New Chapter
+            </Button>
           </div>
 
-          <div className="space-y-4">
-            <h2 className="text-xl font-bold flex items-center gap-2"><ClipboardList /> Mock Tests</h2>
+          {/* Test & Assessment Section */}
+          <div className="space-y-6">
+            <div className="flex items-center justify-between">
+              <h2 className="text-2xl font-bold font-headline flex items-center gap-2"><ClipboardList className="text-accent h-6 w-6" /> Mock Tests & Assessments</h2>
+              <Badge variant="outline" className="border-accent text-accent">Exam Feature</Badge>
+            </div>
             {testFields.map((test, index) => <TestForm key={test.id} testIndex={index} form={form} removeTest={removeTest} />)}
-            <Button type="button" variant="outline" onClick={() => appendTest({ title: "", durationMinutes: 60, questions: [{ question: "", options: ["", "", "", ""], correctAnswerIndex: 0 }] })} className="w-full">Add Mock Test</Button>
+            <Button type="button" variant="outline" onClick={() => appendTest({ title: "New Mock Test", durationMinutes: 60, questions: [{ question: "", options: ["", "", "", ""], correctAnswerIndex: 0 }] })} className="w-full h-14 border-dashed border-2 rounded-2xl border-accent/20 hover:border-accent/50 hover:bg-accent/5">
+              <PlusCircle className="mr-2 h-5 w-5 text-accent" /> Add Sectional Mock Test
+            </Button>
           </div>
 
-          <Button type="submit" disabled={isBusy} className="w-full h-14 text-lg font-bold">
-            {isBusy ? <Loader2 className="animate-spin mr-2" /> : "Publish Course & Tests"}
-          </Button>
+          {/* Action Footer */}
+          <div className="pt-8 border-t flex flex-col md:flex-row gap-4">
+             <Button variant="ghost" type="button" onClick={() => router.back()} className="h-14 px-8 font-bold">Cancel</Button>
+             <Button type="submit" disabled={isBusy} className="flex-1 h-14 text-lg font-bold rounded-2xl shadow-xl shadow-primary/20">
+                {isBusy ? (
+                    <><Loader2 className="animate-spin mr-2" /> Publishing your Program...</>
+                ) : (
+                    <><CheckCircle2 className="mr-2 h-5 w-5" /> Publish Course & Tests</>
+                )}
+             </Button>
+          </div>
         </form>
       </Form>
     </div>
@@ -179,20 +272,52 @@ function ChapterForm({ chapterIndex, form, removeChapter }: any) {
   });
 
   return (
-    <Card className="p-4 bg-muted/20">
-      <div className="flex justify-between items-center mb-4">
-        <h3 className="font-bold">Chapter {chapterIndex + 1}</h3>
-        <Button size="icon" variant="ghost" onClick={() => removeChapter(chapterIndex)}><Trash2 className="h-4 w-4" /></Button>
-      </div>
-      <FormField control={form.control} name={`chapters.${chapterIndex}.title`} render={({ field }) => <FormItem className="mb-4"><FormLabel>Chapter Title</FormLabel><FormControl><Input {...field} /></FormControl></FormItem>} />
-      {lectureFields.map((lecture, lIdx) => (
-        <div key={lecture.id} className="p-4 border rounded mb-2 space-y-2">
-          <div className="flex justify-between"><span>Lecture {lIdx+1}</span><Button type="button" variant="ghost" size="sm" onClick={() => removeLecture(lIdx)}><Trash2 className="h-4 w-4"/></Button></div>
-          <FormField control={form.control} name={`chapters.${chapterIndex}.lectures.${lIdx}.title`} render={({ field }) => <FormItem><FormLabel>Title</FormLabel><FormControl><Input {...field} /></FormControl></FormItem>} />
-          <FormField control={form.control} name={`chapters.${chapterIndex}.lectures.${lIdx}.content`} render={({ field }) => <FormItem><FormLabel>Content (URL/Text)</FormLabel><FormControl><Textarea {...field} /></FormControl></FormItem>} />
+    <Card className="rounded-3xl border-primary/5 shadow-lg overflow-hidden">
+      <CardHeader className="bg-muted/30 p-6 flex flex-row items-center justify-between">
+        <div className="flex items-center gap-3">
+            <Badge variant="secondary" className="rounded-lg px-2">CH {chapterIndex + 1}</Badge>
+            <FormField control={form.control} name={`chapters.${chapterIndex}.title`} render={({ field }) => (
+                <FormControl><Input {...field} className="bg-transparent border-none font-bold text-lg shadow-none focus-visible:ring-0 p-0 h-auto" placeholder="Chapter Title..." /></FormControl>
+            )} />
         </div>
-      ))}
-      <Button type="button" variant="ghost" size="sm" onClick={() => appendLecture({ lectureNumber: lectureFields.length + 1, title: "", type: "video", content: "", summary: "", duration: 15 })} className="mt-2">+ Add Lecture</Button>
+        <Button size="icon" variant="ghost" onClick={() => removeChapter(chapterIndex)} className="text-muted-foreground hover:text-destructive"><Trash2 className="h-4 w-4" /></Button>
+      </CardHeader>
+      <CardContent className="p-6 space-y-4">
+        {lectureFields.map((lecture, lIdx) => (
+          <div key={lecture.id} className="p-4 bg-background border rounded-2xl space-y-4 group transition-all hover:border-primary/20">
+            <div className="flex justify-between items-center">
+                <span className="text-xs font-black uppercase tracking-widest text-muted-foreground">Lecture {lIdx+1}</span>
+                <Button type="button" variant="ghost" size="sm" onClick={() => removeLecture(lIdx)} className="h-8 w-8 rounded-full"><Trash2 className="h-3 w-3"/></Button>
+            </div>
+            
+            <div className="grid md:grid-cols-2 gap-4">
+                <FormField control={form.control} name={`chapters.${chapterIndex}.lectures.${lIdx}.title`} render={({ field }) => (
+                    <FormItem><FormLabel className="text-[10px] uppercase font-bold">Lecture Title</FormLabel><FormControl><Input placeholder="Topic Name..." {...field} /></FormControl></FormItem>
+                )} />
+                <FormField control={form.control} name={`chapters.${chapterIndex}.lectures.${lIdx}.duration`} render={({ field }) => (
+                    <FormItem><FormLabel className="text-[10px] uppercase font-bold">Duration (Min)</FormLabel><FormControl><Input type="number" {...field} /></FormControl></FormItem>
+                )} />
+            </div>
+
+            <FormField control={form.control} name={`chapters.${chapterIndex}.lectures.${lIdx}.content`} render={({ field }) => (
+                <FormItem>
+                    <FormLabel className="text-[10px] uppercase font-bold flex items-center gap-1"><Globe className="h-3 w-3" /> Video / Content URL</FormLabel>
+                    <FormControl><Input placeholder="YouTube / Vimeo / Text..." {...field} /></FormControl>
+                    <FormDescription className="text-[10px]">Enter a URL for video lessons or the full lecture text.</FormDescription>
+                </FormItem>
+            )} />
+
+            <FormField control={form.control} name={`chapters.${chapterIndex}.lectures.${lIdx}.summary`} render={({ field }) => (
+                <FormItem>
+                    <FormLabel className="text-[10px] uppercase font-bold flex items-center gap-1"><Sparkles className="h-3 w-3 text-primary" /> AI Study Notes & Summary</FormLabel>
+                    <FormControl><Textarea placeholder="Key highlights, formulas, or transcription for the AI..." className="min-h-[80px]" {...field} /></FormControl>
+                    <FormDescription className="text-[10px]">Critical for the AI assistant to provide high-quality context to students.</FormDescription>
+                </FormItem>
+            )} />
+          </div>
+        ))}
+        <Button type="button" variant="ghost" size="sm" onClick={() => appendLecture({ lectureNumber: lectureFields.length + 1, title: "", type: "video", content: "", summary: "", duration: 15 })} className="w-full border-dashed border py-6">+ Add Lecture to Chapter</Button>
+      </CardContent>
     </Card>
   );
 }
@@ -204,35 +329,53 @@ function TestForm({ testIndex, form, removeTest }: any) {
   });
 
   return (
-    <Card className="p-4 border-primary/20">
-      <div className="flex justify-between items-center mb-4">
-        <h3 className="font-bold">Test {testIndex + 1}</h3>
-        <Button size="icon" variant="ghost" onClick={() => removeTest(testIndex)}><Trash2 className="h-4 w-4" /></Button>
-      </div>
-      <FormField control={form.control} name={`tests.${testIndex}.title`} render={({ field }) => <FormItem className="mb-2"><FormLabel>Test Title</FormLabel><FormControl><Input {...field} /></FormControl></FormItem>} />
-      <FormField control={form.control} name={`tests.${testIndex}.durationMinutes`} render={({ field }) => <FormItem className="mb-4"><FormLabel>Duration (Minutes)</FormLabel><FormControl><Input type="number" {...field} /></FormControl></FormItem>} />
+    <Card className="rounded-3xl border-accent/10 shadow-xl overflow-hidden bg-accent/5">
+      <CardHeader className="p-6 flex flex-row items-center justify-between border-b border-accent/10">
+        <div className="flex items-center gap-4 flex-1">
+            <Badge className="bg-accent text-accent-foreground font-black">TEST {testIndex + 1}</Badge>
+            <FormField control={form.control} name={`tests.${testIndex}.title`} render={({ field }) => (
+                <FormControl><Input {...field} className="bg-transparent border-none font-bold text-lg shadow-none focus-visible:ring-0 p-0 h-auto" placeholder="Mock Test Title (e.g., Geometry Sectional 01)" /></FormControl>
+            )} />
+        </div>
+        <div className="flex items-center gap-4">
+            <FormField control={form.control} name={`tests.${testIndex}.durationMinutes`} render={({ field }) => (
+                <div className="flex items-center gap-2">
+                    <span className="text-xs font-bold whitespace-nowrap">Time (Min):</span>
+                    <FormControl><Input type="number" {...field} className="w-16 h-8 text-center" /></FormControl>
+                </div>
+            )} />
+            <Button size="icon" variant="ghost" onClick={() => removeTest(testIndex)} className="text-muted-foreground hover:text-destructive"><Trash2 className="h-4 w-4" /></Button>
+        </div>
+      </CardHeader>
       
-      <div className="space-y-4">
+      <CardContent className="p-6 space-y-6">
         {questionFields.map((q, qIdx) => (
-          <div key={q.id} className="p-4 bg-primary/5 rounded border">
-            <div className="flex justify-between mb-2"><span className="font-semibold">Question {qIdx + 1}</span><Button variant="ghost" size="sm" onClick={() => removeQuestion(qIdx)}><Trash2 className="h-4 w-4"/></Button></div>
-            <FormField control={form.control} name={`tests.${testIndex}.questions.${qIdx}.question`} render={({ field }) => <FormItem><FormControl><Input placeholder="Question text..." {...field} /></FormControl></FormItem>} />
-            <div className="grid grid-cols-2 gap-2 mt-2">
+          <div key={q.id} className="p-5 bg-background rounded-2xl border-2 border-accent/5 shadow-sm space-y-4">
+            <div className="flex justify-between items-center mb-2">
+                <span className="text-[10px] font-black uppercase text-accent tracking-tighter">Question {qIdx + 1}</span>
+                <Button variant="ghost" size="sm" onClick={() => removeQuestion(qIdx)} className="h-8 w-8 rounded-full"><Trash2 className="h-3 w-3"/></Button>
+            </div>
+            
+            <FormField control={form.control} name={`tests.${testIndex}.questions.${qIdx}.question`} render={({ field }) => (
+                <FormControl><Input placeholder="Question text..." className="h-12 border-none bg-muted/30" {...field} /></FormControl>
+            )} />
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-2">
               {[0, 1, 2, 3].map(optIdx => (
                 <FormField key={optIdx} control={form.control} name={`tests.${testIndex}.questions.${qIdx}.options.${optIdx}`} render={({ field }) => (
-                  <div className="flex items-center gap-2">
-                    <FormControl><Input placeholder={`Option ${optIdx + 1}`} {...field} /></FormControl>
+                  <div className="flex items-center gap-2 p-2 rounded-xl bg-muted/20 border border-transparent focus-within:border-accent/20">
                     <FormField control={form.control} name={`tests.${testIndex}.questions.${qIdx}.correctAnswerIndex`} render={({ field: radioField }) => (
-                      <input type="radio" checked={radioField.value === optIdx} onChange={() => radioField.onChange(optIdx)} />
+                      <input type="radio" className="h-4 w-4 accent-accent" checked={radioField.value === optIdx} onChange={() => radioField.onChange(optIdx)} />
                     )} />
+                    <FormControl><Input placeholder={`Option ${optIdx + 1}`} className="border-none bg-transparent h-8 shadow-none focus-visible:ring-0" {...field} /></FormControl>
                   </div>
                 )} />
               ))}
             </div>
           </div>
         ))}
-        <Button type="button" variant="ghost" size="sm" onClick={() => appendQuestion({ question: "", options: ["", "", "", ""], correctAnswerIndex: 0 })}>+ Add Question</Button>
-      </div>
+        <Button type="button" variant="ghost" size="sm" onClick={() => appendQuestion({ question: "", options: ["", "", "", ""], correctAnswerIndex: 0 })} className="w-full py-6 border-accent/20 border-dashed border">+ Add MCQ Question</Button>
+      </CardContent>
     </Card>
   );
 }
