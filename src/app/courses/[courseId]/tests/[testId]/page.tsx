@@ -12,6 +12,7 @@ import { Label } from '@/components/ui/label';
 import { Progress } from '@/components/ui/progress';
 import { Loader2, Timer, ChevronLeft, ChevronRight, CheckCircle2, AlertCircle, Trophy } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
+import { cn } from '@/lib/utils';
 
 export default function TakeTestPage() {
   const params = useParams<{ courseId: string; testId: string }>();

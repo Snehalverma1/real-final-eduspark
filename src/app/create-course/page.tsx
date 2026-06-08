@@ -20,6 +20,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { PlusCircle, Trash2, Book, Film, Loader2, ShieldAlert, Layers, Sparkles, Image as ImageIcon, ClipboardList, CheckCircle2, Globe } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Badge } from "@/components/ui/badge";
 import { useUser, useFirestore, useDoc, useMemoFirebase, errorEmitter, FirestorePermissionError } from "@/firebase";
 import { doc, collection, setDoc } from 'firebase/firestore';
 import { useToast } from "@/hooks/use-toast";
@@ -280,7 +281,7 @@ function ChapterForm({ chapterIndex, form, removeChapter }: any) {
                 <FormControl><Input {...field} className="bg-transparent border-none font-bold text-lg shadow-none focus-visible:ring-0 p-0 h-auto" placeholder="Chapter Title..." /></FormControl>
             )} />
         </div>
-        <Button size="icon" variant="ghost" onClick={() => removeChapter(chapterIndex)} className="text-muted-foreground hover:text-destructive"><Trash2 className="h-4 w-4" /></Button>
+        <Button size="icon" variant="ghost" type="button" onClick={() => removeChapter(chapterIndex)} className="text-muted-foreground hover:text-destructive"><Trash2 className="h-4 w-4" /></Button>
       </CardHeader>
       <CardContent className="p-6 space-y-4">
         {lectureFields.map((lecture, lIdx) => (
@@ -344,7 +345,7 @@ function TestForm({ testIndex, form, removeTest }: any) {
                     <FormControl><Input type="number" {...field} className="w-16 h-8 text-center" /></FormControl>
                 </div>
             )} />
-            <Button size="icon" variant="ghost" onClick={() => removeTest(testIndex)} className="text-muted-foreground hover:text-destructive"><Trash2 className="h-4 w-4" /></Button>
+            <Button size="icon" variant="ghost" type="button" onClick={() => removeTest(testIndex)} className="text-muted-foreground hover:text-destructive"><Trash2 className="h-4 w-4" /></Button>
         </div>
       </CardHeader>
       
@@ -353,7 +354,7 @@ function TestForm({ testIndex, form, removeTest }: any) {
           <div key={q.id} className="p-5 bg-background rounded-2xl border-2 border-accent/5 shadow-sm space-y-4">
             <div className="flex justify-between items-center mb-2">
                 <span className="text-[10px] font-black uppercase text-accent tracking-tighter">Question {qIdx + 1}</span>
-                <Button variant="ghost" size="sm" onClick={() => removeQuestion(qIdx)} className="h-8 w-8 rounded-full"><Trash2 className="h-3 w-3"/></Button>
+                <Button variant="ghost" size="sm" type="button" onClick={() => removeQuestion(qIdx)} className="h-8 w-8 rounded-full"><Trash2 className="h-3 w-3"/></Button>
             </div>
             
             <FormField control={form.control} name={`tests.${testIndex}.questions.${qIdx}.question`} render={({ field }) => (
