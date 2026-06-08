@@ -17,7 +17,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { PlusCircle, Trash2, Book, Film, Loader2, ShieldAlert, Layers, Sparkles } from "lucide-react";
+import { PlusCircle, Trash2, Book, Film, Loader2, ShieldAlert, Layers, Sparkles, Image as ImageIcon } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useUser, useFirestore, useDoc, useMemoFirebase, errorEmitter, FirestorePermissionError } from "@/firebase";
 import { doc, collection, setDoc } from 'firebase/firestore';
@@ -43,6 +43,7 @@ const courseSchema = z.object({
   title: z.string().min(5, "Title must be at least 5 characters."),
   description: z.string().min(20, "Description must be at least 20 characters."),
   category: z.string({ required_error: "Please select an exam category." }),
+  thumbnailUrl: z.string().optional().describe("URL for the course cover image."),
   difficultyLevel: z.enum(['Beginner', 'Intermediate', 'Advanced'], { required_error: "Please select a difficulty level." }),
   chapters: z.array(chapterSchema).min(1, "At least one chapter is required."),
 });
@@ -69,6 +70,7 @@ export default function CreateCoursePage() {
       title: "",
       description: "",
       category: "",
+      thumbnailUrl: "",
       chapters: [{ title: "Chapter 1", lectures: [{ lectureNumber: 1, title: "", type: "video", content: "", summary: "", duration: 15 }] }],
     },
   });
@@ -109,7 +111,7 @@ export default function CreateCoursePage() {
       difficultyLevel: data.difficultyLevel,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
-      thumbnailUrl: `https://picsum.photos/seed/${courseId}/600/400`,
+      thumbnailUrl: data.thumbnailUrl || `https://picsum.photos/seed/${courseId}/600/400`,
       chapters: data.chapters.map((chapter, cIndex) => ({
         id: `ch_${cIndex + 1}`,
         title: chapter.title,
@@ -154,7 +156,7 @@ export default function CreateCoursePage() {
     );
   }
 
-  if (userProfile?.role === 'student' || (userProfile?.role === 'subject-teacher' && userProfile?.applicationStatus !== 'approved')) {
+  if (userProfile?.role === 'student' || (userProfile?.role === 'teacher' && userProfile?.applicationStatus !== 'approved')) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[calc(100vh-4rem)] text-center p-4">
         <ShieldAlert className="h-16 w-16 text-destructive mb-4" />
@@ -261,6 +263,26 @@ export default function CreateCoursePage() {
                     )}
                   />
               </div>
+
+              <FormField
+                control={form.control}
+                name="thumbnailUrl"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="flex items-center gap-2">
+                      <ImageIcon className="h-4 w-4" />
+                      Thumbnail Image URL
+                    </FormLabel>
+                    <FormControl>
+                      <Input placeholder="https://example.com/image.jpg" className="rounded-xl h-12" {...field} />
+                    </FormControl>
+                    <FormDescription>
+                      Provide a URL for the course cover image. If left blank, a high-quality placeholder will be generated.
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
             </CardContent>
           </Card>
 
