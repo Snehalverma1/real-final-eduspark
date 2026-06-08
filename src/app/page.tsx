@@ -1,15 +1,17 @@
+
 'use client';
 
 import { useState } from 'react';
 import { CourseCard } from "@/components/course-card";
 import { Input } from "@/components/ui/input";
-import { Search, Loader2, Award, BookOpen, Users, TrendingUp, Sparkles } from "lucide-react";
+import { Search, Loader2, Award, BookOpen, Users, TrendingUp, Sparkles, Bell, Calendar, ChevronRight } from "lucide-react";
 import { useFirestore, useCollection, useUser, useDoc, useMemoFirebase } from "@/firebase";
 import { collection, query, where, doc } from "firebase/firestore";
 import type { Course as CourseType } from "@/lib/data";
 import { categories } from "@/lib/data";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import Link from 'next/link';
 
 export default function Home() {
   const firestore = useFirestore();
@@ -53,8 +55,34 @@ export default function Home() {
       course.description.toLowerCase().includes(searchQuery.toLowerCase())
     );
 
+  const examAlerts = [
+    { title: "SSC CGL 2024 Tier-1 Result Out", tag: "New", color: "text-red-500" },
+    { title: "IBPS PO Phase-II Admit Card Released", tag: "Update", color: "text-blue-500" },
+    { title: "RRB NTPC Exam Date Notification", tag: "Alert", color: "text-orange-500" },
+    { title: "UPSC Prelims 2025 Calendar Released", tag: "Calendar", color: "text-green-500" },
+  ];
+
   return (
     <div className="min-h-screen bg-background hero-gradient">
+      {/* Dynamic Exam Alert Ticker */}
+      <div className="bg-foreground text-background py-2 overflow-hidden border-b border-white/10">
+        <div className="container mx-auto px-4 flex items-center gap-6">
+          <div className="flex items-center gap-2 whitespace-nowrap bg-primary text-white px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-tighter shrink-0 animate-pulse">
+            <Bell className="h-3 w-3" />
+            Live Alerts
+          </div>
+          <div className="flex gap-12 animate-infinite-scroll overflow-x-hidden whitespace-nowrap text-xs font-medium opacity-80 py-1">
+            {examAlerts.map((alert, i) => (
+              <div key={i} className="flex items-center gap-2">
+                <span className={cn("font-bold", alert.color)}>[{alert.tag}]</span>
+                <span>{alert.title}</span>
+                <span className="opacity-20">|</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
       {/* Premium Hero Section */}
       <section className="relative overflow-hidden pt-12 pb-20 md:pt-24 md:pb-32 border-b bg-gradient-to-b from-primary/5 via-background to-background">
         <div className="container mx-auto px-4 relative z-10">
@@ -168,7 +196,11 @@ export default function Home() {
               Explore meticulously designed study plans approved by former toppers and subject matter experts.
             </p>
           </div>
-          <Button variant="outline" className="rounded-xl border-primary/20 text-primary hover:bg-primary/5 hidden md:flex">View Exam Calendar</Button>
+          <Button variant="outline" className="rounded-xl border-primary/20 text-primary hover:bg-primary/5 hidden md:flex" asChild>
+            <Link href="#exam-calendar">
+                <Calendar className="mr-2 h-4 w-4" /> View Exam Calendar
+            </Link>
+          </Button>
         </div>
 
         {isLoading ? (
@@ -233,7 +265,7 @@ export default function Home() {
                 <h4 className="text-green-500 font-bold mb-2">Railways</h4>
                 <p className="text-sm text-background/50">Comprehensive RRB NTPC batch starting every Monday.</p>
               </div>
-              <div className="p-8 bg-background/5 border border-background/10 rounded-3xl backdrop-blur-md">
+              <div className="p-8 bg-background/5 border border-background/10 rounded-3xl backdrop-blur-md" id="exam-calendar">
                 <h4 className="text-purple-500 font-bold mb-2">UPSC</h4>
                 <p className="text-sm text-background/50">CSAT and General Studies with daily current affairs.</p>
               </div>

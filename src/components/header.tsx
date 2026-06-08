@@ -1,7 +1,8 @@
+
 "use client";
 
 import Link from "next/link";
-import { BookOpen, LogIn, UserPlus, LogOut, User, PlusCircle, Shield, LayoutDashboard } from "lucide-react";
+import { BookOpen, LogIn, UserPlus, LogOut, User, PlusCircle, Shield, LayoutDashboard, GraduationCap } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -44,34 +45,43 @@ export default function Header() {
 
   return (
     <header className="sticky top-0 z-50 w-full border-b border-border/40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-      <div className="container flex h-14 max-w-screen-2xl items-center">
-        <Link href="/" className="mr-6 flex items-center space-x-2">
-          <BookOpen className="h-6 w-6 text-primary" />
-          <span className="font-bold font-headline inline-block text-xl">EduSpark</span>
+      <div className="container flex h-16 max-w-screen-2xl items-center">
+        <Link href="/" className="mr-8 flex items-center space-x-2">
+          <BookOpen className="h-7 w-7 text-primary" />
+          <span className="font-black font-headline inline-block text-2xl tracking-tighter">EduSpark</span>
         </Link>
-        <nav className="flex items-center gap-4 text-sm lg:gap-6">
+        <nav className="flex items-center gap-6 text-sm font-bold">
           <Link
             href="/"
-            className="transition-colors hover:text-foreground/80 text-foreground/60"
+            className="transition-colors hover:text-primary text-foreground/70"
           >
             Courses
           </Link>
+          {isLoggedIn && (
+            <Link
+              href="/my-learning"
+              className="transition-colors hover:text-primary text-foreground/70 flex items-center gap-1.5"
+            >
+              <GraduationCap className="h-4 w-4" />
+              My Learning
+            </Link>
+          )}
           {(isTeacher || isAdmin) && (
             <Link
               href={isAdmin ? "/admin" : "/dashboard"}
-              className="transition-colors hover:text-foreground/80 text-foreground/60"
+              className="transition-colors hover:text-primary text-foreground/70"
             >
               Dashboard
             </Link>
           )}
         </nav>
-        <div className="flex flex-1 items-center justify-end space-x-2">
+        <div className="flex flex-1 items-center justify-end space-x-4">
           {isLoading ? (
-            <Skeleton className="h-8 w-8 rounded-full" />
+            <Skeleton className="h-10 w-10 rounded-full" />
           ) : isLoggedIn ? (
             <>
               {canCreateCourse && (
-                <Button asChild variant="ghost" size="sm" className="hidden md:flex">
+                <Button asChild variant="default" size="sm" className="hidden md:flex rounded-full px-5 shadow-lg shadow-primary/10">
                   <Link href="/create-course">
                     <PlusCircle className="mr-2 h-4 w-4" />
                     New Course
@@ -79,72 +89,82 @@ export default function Header() {
                 </Button>
               )}
               {!isApproved && isTeacher && (
-                <span className="text-xs bg-yellow-500/10 text-yellow-600 px-2 py-1 rounded-full border border-yellow-500/20 mr-2">
-                  Approval Pending
+                <span className="text-[10px] uppercase font-black bg-yellow-500/10 text-yellow-600 px-3 py-1 rounded-full border border-yellow-500/20 mr-2">
+                  Pending Verification
                 </span>
               )}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" className="relative h-8 w-8 rounded-full">
-                    <Avatar className="h-8 w-8 border-2 border-primary/20">
+                  <Button variant="ghost" className="relative h-10 w-10 rounded-full p-0 border-2 border-primary/10 hover:border-primary/30 transition-all">
+                    <Avatar className="h-full w-full">
                       <AvatarImage src={user.photoURL || `https://picsum.photos/seed/${user.uid}/40/40`} alt={user.displayName || "User"} />
-                      <AvatarFallback className="bg-primary/10 text-primary">
+                      <AvatarFallback className="bg-primary/5 text-primary">
                         {user.email?.charAt(0).toUpperCase()}
                       </AvatarFallback>
                     </Avatar>
                   </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent className="w-56" align="end" forceMount>
-                  <DropdownMenuLabel className="font-normal">
-                    <div className="flex flex-col space-y-1">
-                      <p className="text-sm font-semibold leading-none">{user.displayName || 'EduSpark User'}</p>
+                <DropdownMenuContent className="w-64 mt-2 rounded-2xl shadow-2xl border-primary/5" align="end" forceMount>
+                  <DropdownMenuLabel className="font-normal p-4">
+                    <div className="flex flex-col space-y-2">
+                      <p className="text-base font-black leading-none">{user.displayName || 'EduSpark User'}</p>
                       <p className="text-xs leading-none text-muted-foreground truncate">
                         {user.email}
                       </p>
                       {isAdmin && (
-                        <span className="text-[10px] uppercase tracking-wider text-primary font-bold mt-1">Administrator</span>
+                        <span className="text-[10px] uppercase tracking-widest text-primary font-black mt-1 bg-primary/5 px-2 py-0.5 rounded-full w-fit">Administrator</span>
                       )}
                     </div>
                   </DropdownMenuLabel>
                   <DropdownMenuSeparator />
-                  {isAdmin && (
-                     <DropdownMenuItem asChild className="text-primary font-medium focus:bg-primary/5 focus:text-primary">
-                       <Link href="/admin">
-                         <Shield className="mr-2 h-4 w-4" />
-                         <span>Admin Dashboard</span>
-                       </Link>
-                     </DropdownMenuItem>
-                  )}
-                  {isTeacher && (
-                    <DropdownMenuItem asChild>
-                      <Link href="/dashboard">
-                        <LayoutDashboard className="mr-2 h-4 w-4" />
-                        <span>Teacher Dashboard</span>
-                      </Link>
+                  <div className="p-2">
+                    <DropdownMenuItem asChild className="rounded-xl">
+                        <Link href="/my-learning">
+                            <GraduationCap className="mr-2 h-4 w-4" />
+                            <span>My Learning Hub</span>
+                        </Link>
                     </DropdownMenuItem>
-                  )}
-                  <DropdownMenuItem>
-                    <User className="mr-2 h-4 w-4" />
-                    <span>My Profile</span>
-                  </DropdownMenuItem>
+                    {isAdmin && (
+                        <DropdownMenuItem asChild className="text-primary font-bold focus:bg-primary/5 focus:text-primary rounded-xl">
+                        <Link href="/admin">
+                            <Shield className="mr-2 h-4 w-4" />
+                            <span>Admin Dashboard</span>
+                        </Link>
+                        </DropdownMenuItem>
+                    )}
+                    {isTeacher && (
+                        <DropdownMenuItem asChild className="rounded-xl">
+                        <Link href="/dashboard">
+                            <LayoutDashboard className="mr-2 h-4 w-4" />
+                            <span>Teacher Dashboard</span>
+                        </Link>
+                        </DropdownMenuItem>
+                    )}
+                    <DropdownMenuItem className="rounded-xl">
+                        <User className="mr-2 h-4 w-4" />
+                        <span>My Profile</span>
+                    </DropdownMenuItem>
+                  </div>
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={handleLogout} className="text-destructive focus:bg-destructive/5 focus:text-destructive">
-                    <LogOut className="mr-2 h-4 w-4" />
-                    <span>Log out</span>
-                  </DropdownMenuItem>
+                  <div className="p-2">
+                    <DropdownMenuItem onClick={handleLogout} className="text-destructive font-bold focus:bg-destructive/5 focus:text-destructive rounded-xl">
+                        <LogOut className="mr-2 h-4 w-4" />
+                        <span>Log out</span>
+                    </DropdownMenuItem>
+                  </div>
                 </DropdownMenuContent>
               </DropdownMenu>
             </>
           ) : (
             <>
-              <Button asChild variant="ghost">
+              <Button asChild variant="ghost" className="font-bold">
                 <Link href="/login">
                   <LogIn className="mr-2 h-4 w-4" /> Login
                 </Link>
               </Button>
-              <Button asChild>
+              <Button asChild className="rounded-full px-6 font-bold shadow-xl shadow-primary/20">
                 <Link href="/signup">
-                  <UserPlus className="mr-2 h-4 w-4" /> Sign Up
+                  <UserPlus className="mr-2 h-4 w-4" /> Get Started
                 </Link>
               </Button>
             </>
