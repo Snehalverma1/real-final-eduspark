@@ -1,6 +1,7 @@
 
 'use client';
 
+import { useEffect, useState } from 'react';
 import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
 import { collection, query, where } from 'firebase/firestore';
 import { Loader2, BookOpen, Clock, Trophy, ArrowRight } from 'lucide-react';
@@ -14,6 +15,12 @@ import { Skeleton } from '@/components/ui/skeleton';
 export default function MyLearningPage() {
   const { user, isUserLoading } = useUser();
   const firestore = useFirestore();
+  const [mounted, setMounted] = useState(false);
+
+  // Avoid hydration mismatch by waiting for client-side mount
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   // In a real app, we would have an 'enrollments' collection.
   // For this prototype, we'll show all published courses as "Your Courses"
@@ -24,7 +31,7 @@ export default function MyLearningPage() {
 
   const { data: courses, isLoading: areCoursesLoading } = useCollection(enrolledCoursesQuery);
 
-  if (isUserLoading) {
+  if (isUserLoading || !mounted) {
     return (
       <div className="flex items-center justify-center min-h-[calc(100vh-4rem)]">
         <Loader2 className="h-8 w-8 animate-spin" />
@@ -111,7 +118,8 @@ export default function MyLearningPage() {
               <CardHeader className="p-4">
                 <CardTitle className="text-lg line-clamp-1 group-hover:text-primary transition-colors">{course.title}</CardTitle>
                 <div className="flex items-center gap-2 mt-2">
-                   <Progress value={Math.random() * 80 + 20} className="h-1.5" />
+                   {/* Using a stable seeded progress based on ID to avoid hydration errors */}
+                   <Progress value={45} className="h-1.5" />
                    <span className="text-[10px] font-bold text-muted-foreground whitespace-nowrap">Progress</span>
                 </div>
               </CardHeader>
