@@ -10,8 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Label } from '@/components/ui/label';
 import { Progress } from '@/components/ui/progress';
-import { Loader2, Timer, ChevronLeft, ChevronRight, CheckCircle2, AlertCircle, Trophy } from 'lucide-react';
-import { Badge } from '@/components/ui/badge';
+import { Loader2, Timer, ChevronLeft, ChevronRight, CheckCircle2, Trophy } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 export default function TakeTestPage() {
@@ -40,12 +39,13 @@ export default function TakeTestPage() {
   }, [firestore, user, courseId]);
 
   const test = useMemo(() => {
-    return course?.tests?.find((t: any) => t.id === testId);
+    if (!course?.tests) return null;
+    return course.tests.find((t: any) => t.id === testId);
   }, [course, testId]);
 
   useEffect(() => {
     if (test && timeLeft === null) {
-      setTimeLeft(test.durationMinutes * 60);
+      setTimeLeft((test.durationMinutes || 60) * 60);
     }
   }, [test, timeLeft]);
 
@@ -89,8 +89,17 @@ export default function TakeTestPage() {
     }
   };
 
-  if (isCourseLoading) return <div className="flex items-center justify-center min-h-screen"><Loader2 className="animate-spin" /></div>;
-  if (!test) return <div className="p-8 text-center">Test not found.</div>;
+  if (isCourseLoading) return <div className="flex items-center justify-center min-h-screen"><Loader2 className="animate-spin text-primary" /></div>;
+  
+  if (!course) return <div className="p-20 text-center">Course not found.</div>;
+  
+  if (!test) return (
+    <div className="p-20 text-center space-y-4">
+      <h2 className="text-2xl font-bold">Mock Test Not Found</h2>
+      <p className="text-muted-foreground">The test you are looking for does not exist in this course curriculum.</p>
+      <Button onClick={() => router.push(`/courses/${courseId}`)}>Back to Curriculum</Button>
+    </div>
+  );
 
   if (isFinished) {
     const correctCount = test.questions.filter((q: any) => answers[q.id] === q.correctAnswerIndex).length;
@@ -128,7 +137,7 @@ export default function TakeTestPage() {
             <div className="container mx-auto p-4 flex justify-between items-center">
                 <div>
                     <h1 className="font-bold text-lg">{test.title}</h1>
-                    <p className="text-xs text-muted-foreground">SSC Sectional Mock Test</p>
+                    <p className="text-xs text-muted-foreground">Mock Assessment Hub</p>
                 </div>
                 <div className={cn("flex items-center gap-2 px-4 py-2 rounded-full font-mono text-lg font-bold border", (timeLeft || 0) < 60 ? "bg-red-50 text-red-600 border-red-200 animate-pulse" : "bg-primary/5 text-primary border-primary/10")}>
                     <Timer className="h-5 w-5" />

@@ -33,23 +33,21 @@ export default function CoursePage() {
         thumbnailUrl: courseData.thumbnailUrl,
         thumbnailHint: `course ${courseData.id}`,
         targetClass: courseData.targetClass,
-        chapters: (courseData.chapters || []).map((chapter: any) => ({
+        chapters: (courseData.chapters || []).map((chapter: any, cIdx: number) => ({
           ...chapter,
-          // Ensure chapters have IDs for the Accordion to work correctly
-          id: chapter.id || `ch-${Math.random().toString(36).substr(2, 9)}`,
-          lectures: (chapter.lectures || []).map((lecture: any) => {
-            // Handle both legacy durationSeconds and the new duration field
+          id: chapter.id || `ch-${cIdx}`,
+          lectures: (chapter.lectures || []).map((lecture: any, lIdx: number) => {
             const duration = lecture.duration || Math.round((lecture.durationSeconds || 0) / 60);
             return {
               ...lecture,
-              id: lecture.id || `lec-${Math.random().toString(36).substr(2, 9)}`,
+              id: lecture.id || `lec-${cIdx}-${lIdx}`,
               duration: duration || 0,
             };
           }),
         })),
-        tests: (courseData.tests || []).map((test: any) => ({
+        tests: (courseData.tests || []).map((test: any, tIdx: number) => ({
             ...test,
-            id: test.id || `test-${Math.random().toString(36).substr(2, 9)}`,
+            id: test.id || `test-${tIdx}`,
         })),
         instructor: {
           name: courseData.instructorName || 'Instructor',
