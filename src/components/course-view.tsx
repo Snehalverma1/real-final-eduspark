@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useMemo, useEffect } from "react";
@@ -5,13 +6,13 @@ import type { Course, Lecture } from "@/lib/data";
 import { Progress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { CheckCircle, Lock, Sparkles, BookOpen, VideoOff, Radio, FileText, ClipboardList } from "lucide-react";
+import { CheckCircle, Lock, Sparkles, BookOpen, VideoOff, Radio, FileText, ClipboardList, Loader2, ArrowRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import AiQaPanel from "./ai-qa-panel";
 import { ScrollArea } from "./ui/scroll-area";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
-import { useFirestore, useDoc, useMemoFirebase } from "@/firebase";
-import { doc } from "firebase/firestore";
+import { useFirestore, useDoc, useMemoFirebase, useUser, setDocumentNonBlocking, updateDocumentNonBlocking } from "@/firebase";
+import { doc, serverTimestamp } from "firebase/firestore";
 import Link from "next/link";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
@@ -19,7 +20,7 @@ function CourseSidebar({ course, progress, completedLectures, activeLecture, set
     return (
         <aside className="border-r bg-card hidden md:flex flex-col">
             <div className="p-4 border-b">
-                <h2 className="text-xl font-bold font-headline">{course.title}</h2>
+                <h2 className="text-xl font-bold font-headline line-clamp-2">{course.title}</h2>
                 <div className="flex items-center gap-3 mt-3">
                     <Progress value={progress} className="h-2" />
                     <span className="text-sm font-medium text-muted-foreground whitespace-nowrap">
@@ -54,7 +55,7 @@ function CourseSidebar({ course, progress, completedLectures, activeLecture, set
                                                 className={cn(
                                                     "w-full text-left p-3 rounded-lg transition-colors flex items-start gap-3 text-sm",
                                                     "disabled:text-muted-foreground disabled:cursor-not-allowed",
-                                                    isActive ? "bg-primary/10 text-primary-foreground" : "hover:bg-accent/50",
+                                                    isActive ? "bg-primary/10 text-primary" : "hover:bg-accent/50",
                                                     isActive && "font-semibold"
                                                 )}
                                             >
@@ -79,11 +80,24 @@ function CourseSidebar({ course, progress, completedLectures, activeLecture, set
 }
 
 export default function CourseView({ course }: { course: Course }) {
-  const [completedLectures, setCompletedLectures] = useState<Set<string>>(new Set());
+  const { user } = useUser();
+  const firestore = useFirestore();
   const [activeLecture, setActiveLecture] = useState<Lecture | null>(null);
   const [isQaPanelOpen, setIsQaPanelOpen] = useState(false);
-  const firestore = useFirestore();
 
+  // Enrollment and Progress Tracking
+  const enrollmentRef = useMemoFirebase(() => {
+    if (!firestore || !user || !course.id) return null;
+    return doc(firestore, 'userProfiles', user.uid, 'enrollments', course.id);
+  }, [firestore, user, course.id]);
+
+  const { data: enrollment, isLoading: isEnrollmentLoading } = useDoc(enrollmentRef);
+
+  const completedLectures = useMemo(() => {
+    return new Set<string>(enrollment?.completedLectures || []);
+  }, [enrollment]);
+
+  // Live Session Tracking
   const sessionRef = useMemoFirebase(() => {
     if (!firestore || !course.id) return null;
     return doc(firestore, 'courses', course.id, 'liveSessions', 'active_session');
@@ -93,7 +107,7 @@ export default function CourseView({ course }: { course: Course }) {
   const isLive = sessionData?.status === 'active';
   
   const { totalLectures, firstLecture } = useMemo(() => {
-    const lectures: Lecture[] = course.chapters.flatMap(c => c.lectures);
+    const lectures: Lecture[] = (course.chapters || []).flatMap(c => c.lectures || []);
     return {
         totalLectures: lectures.length,
         firstLecture: lectures[0] || null
@@ -112,15 +126,33 @@ export default function CourseView({ course }: { course: Course }) {
   }, [completedLectures.size, totalLectures]);
 
   const toggleLectureComplete = (lectureId: string) => {
-    setCompletedLectures((prev) => {
-      const newSet = new Set(prev);
-      if (newSet.has(lectureId)) {
-        newSet.delete(lectureId);
-      } else {
-        newSet.add(lectureId);
-      }
-      return newSet;
+    if (!enrollmentRef || !user) return;
+
+    const currentCompleted = Array.from(completedLectures);
+    let newCompleted;
+
+    if (completedLectures.has(lectureId)) {
+        newCompleted = currentCompleted.filter(id => id !== lectureId);
+    } else {
+        newCompleted = [...currentCompleted, lectureId];
+    }
+
+    updateDocumentNonBlocking(enrollmentRef, {
+        completedLectures: newCompleted,
+        updatedAt: serverTimestamp()
     });
+  };
+
+  const handleEnroll = () => {
+    if (!enrollmentRef || !user) return;
+    
+    setDocumentNonBlocking(enrollmentRef, {
+        userId: user.uid,
+        courseId: course.id,
+        completedLectures: [],
+        enrolledAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+    }, { merge: true });
   };
 
   const getVideoEmbedUrl = (url: string): string => {
@@ -147,7 +179,6 @@ export default function CourseView({ course }: { course: Course }) {
     return url;
   };
 
-  // Combine title, content (if text), and summary for AI context
   const aiContext = useMemo(() => {
     if (!activeLecture) return "";
     let context = `Lesson Title: ${activeLecture.title}\n\n`;
@@ -159,6 +190,42 @@ export default function CourseView({ course }: { course: Course }) {
     }
     return context;
   }, [activeLecture]);
+
+  if (isEnrollmentLoading) {
+      return (
+          <div className="flex items-center justify-center min-h-[calc(100vh-4rem)]">
+              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          </div>
+      );
+  }
+
+  // Not Enrolled View
+  if (!enrollment && user) {
+      return (
+          <div className="flex flex-col items-center justify-center min-h-[calc(100vh-4rem)] p-8 text-center max-w-2xl mx-auto">
+              <div className="h-20 w-20 bg-primary/10 rounded-full flex items-center justify-center mb-6">
+                <BookOpen className="h-10 w-10 text-primary" />
+              </div>
+              <h1 className="text-4xl font-bold font-headline mb-4">{course.title}</h1>
+              <p className="text-muted-foreground text-lg mb-8 leading-relaxed">
+                  Join this course to access all lectures, study materials, and track your progress toward exam success.
+              </p>
+              <div className="grid grid-cols-2 gap-4 w-full mb-8">
+                  <div className="p-4 border rounded-2xl bg-muted/30">
+                      <p className="text-2xl font-bold font-headline">{totalLectures}</p>
+                      <p className="text-xs text-muted-foreground uppercase font-black">Lectures</p>
+                  </div>
+                  <div className="p-4 border rounded-2xl bg-muted/30">
+                      <p className="text-2xl font-bold font-headline">Lifetime</p>
+                      <p className="text-xs text-muted-foreground uppercase font-black">Access</p>
+                  </div>
+              </div>
+              <Button onClick={handleEnroll} size="lg" className="w-full h-16 rounded-2xl text-xl font-bold shadow-xl shadow-primary/20">
+                  Enroll in Program <ArrowRight className="ml-2 h-5 w-5" />
+              </Button>
+          </div>
+      );
+  }
 
   return (
     <div className="grid md:grid-cols-[350px_1fr] min-h-[calc(100vh-4rem)]">
@@ -208,7 +275,7 @@ export default function CourseView({ course }: { course: Course }) {
                         <p className="text-muted-foreground">Topic {activeLecture.lectureNumber || 'N/A'} • {activeLecture.duration} mins</p>
                     </div>
                     <div className="flex gap-2">
-                        <Button onClick={() => toggleLectureComplete(activeLecture.id)} variant="outline" className="rounded-xl">
+                        <Button onClick={() => toggleLectureComplete(activeLecture.id)} variant={completedLectures.has(activeLecture.id) ? "secondary" : "outline"} className="rounded-xl">
                             <CheckCircle className={cn("mr-2 h-4 w-4", completedLectures.has(activeLecture.id) && "text-green-500")} />
                             {completedLectures.has(activeLecture.id) ? 'Completed' : 'Mark Done'}
                         </Button>

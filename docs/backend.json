@@ -1,3 +1,4 @@
+
 {
   "entities": {
     "UserProfile": {
@@ -41,6 +42,20 @@
         "updatedAt": { "type": "string", "format": "date-time" }
       },
       "required": ["id", "title", "category", "instructorId", "status", "createdAt", "updatedAt"]
+    },
+    "Enrollment": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Enrollment",
+      "type": "object",
+      "description": "Tracks a student's progress and enrollment status in a specific course.",
+      "properties": {
+        "userId": { "type": "string" },
+        "courseId": { "type": "string" },
+        "completedLectures": { "type": "array", "items": { "type": "string" }, "description": "Array of lecture IDs completed by the user." },
+        "enrolledAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "courseId", "completedLectures", "enrolledAt", "updatedAt"]
     }
   },
   "auth": {
@@ -55,6 +70,10 @@
       {
         "path": "/courses/{courseId}",
         "definition": { "entityName": "Course", "schema": { "$ref": "#/backend/entities/Course" } }
+      },
+      {
+        "path": "/userProfiles/{userId}/enrollments/{courseId}",
+        "definition": { "entityName": "Enrollment", "schema": { "$ref": "#/backend/entities/Enrollment" } }
       }
     ]
   }
