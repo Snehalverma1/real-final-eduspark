@@ -6,6 +6,7 @@ import type { Course, Lecture, Test } from "@/lib/data";
 import { Progress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { CheckCircle, Lock, Sparkles, BookOpen, VideoOff, Radio, FileText, ClipboardList, Loader2, ArrowRight, Trophy } from "lucide-react";
 import { cn } from "@/lib/utils";
 import AiQaPanel from "./ai-qa-panel";
