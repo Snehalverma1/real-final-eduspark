@@ -12,7 +12,7 @@ import {
 import { Button } from "./ui/button";
 import { Textarea } from "./ui/textarea";
 import { aiCourseQATool, type AICourseQAToolInput } from "@/ai/flows/ai-course-qa-tool";
-import { Sparkles, Bot } from "lucide-react";
+import { Sparkles, Bot, BrainCircuit } from "lucide-react";
 import { Card, CardContent } from "./ui/card";
 import { ScrollArea } from "./ui/scroll-area";
 import { Avatar, AvatarFallback } from "./ui/avatar";
@@ -31,8 +31,18 @@ type FormState = {
 function SubmitButton() {
   const { pending } = useFormStatus();
   return (
-    <Button type="submit" disabled={pending} className="w-full">
-      {pending ? "Thinking..." : "Get Answer"}
+    <Button type="submit" disabled={pending} className="w-full h-12 rounded-xl font-bold shadow-lg shadow-primary/20">
+      {pending ? (
+        <>
+          <BrainCircuit className="mr-2 h-4 w-4 animate-pulse" />
+          Thinking Deeply...
+        </>
+      ) : (
+        <>
+          <Sparkles className="mr-2 h-4 w-4" />
+          Get Expert Insight
+        </>
+      )}
     </Button>
   );
 }
@@ -59,7 +69,7 @@ export default function AiQaPanel({
       } catch (e) {
         return {
           answer: null,
-          error: "An error occurred. Please try again.",
+          error: "The AI consultant is currently busy. Please try again in a moment.",
         };
       }
     },
@@ -68,46 +78,63 @@ export default function AiQaPanel({
 
   return (
     <Sheet open={isOpen} onOpenChange={setIsOpen}>
-      <SheetContent className="w-full sm:max-w-lg p-0 flex flex-col">
-        <SheetHeader className="p-6 pb-4">
+      <SheetContent className="w-full sm:max-w-lg p-0 flex flex-col border-l-primary/10">
+        <SheetHeader className="p-6 pb-4 bg-primary/5">
           <SheetTitle className="flex items-center gap-2 font-headline text-2xl">
-            <Sparkles className="text-primary w-6 h-6" />
-            AI-Powered Q&A
+            <div className="p-2 bg-primary rounded-lg">
+                <BrainCircuit className="text-white w-5 h-5" />
+            </div>
+            Expert AI Consultant
           </SheetTitle>
-          <SheetDescription>
-            Ask a question about the lesson content and get an instant answer from our AI assistant.
+          <SheetDescription className="text-foreground/70">
+            Ask complex questions, request shortcuts, or get deep concept explanations from our advanced educational AI.
           </SheetDescription>
         </SheetHeader>
-        <div className="flex-1 overflow-hidden px-6 pb-6">
-            <ScrollArea className="h-full">
+        <div className="flex-1 overflow-hidden px-6 pt-6">
+            <ScrollArea className="h-full pr-4">
                 {formState.answer && (
-                    <Card className="mb-4 bg-primary/5">
-                        <CardContent className="p-4">
-                            <div className="flex items-start gap-3">
-                                <Avatar className="w-8 h-8 border-2 border-primary/50">
+                    <Card className="mb-6 border-primary/20 bg-white shadow-xl rounded-2xl overflow-hidden">
+                        <CardContent className="p-6">
+                            <div className="flex items-start gap-4">
+                                <Avatar className="w-10 h-10 border-2 border-primary shadow-sm">
                                     <AvatarFallback className="bg-primary text-primary-foreground">
-                                        <Bot className="w-5 h-5"/>
+                                        <Bot className="w-6 h-6"/>
                                     </AvatarFallback>
                                 </Avatar>
-                                <div>
-                                    <p className="font-semibold text-primary">AI Assistant</p>
-                                    <p className="text-sm">{formState.answer}</p>
+                                <div className="space-y-3 flex-1">
+                                    <p className="font-black text-primary text-sm uppercase tracking-widest">Expert Analysis</p>
+                                    <div className="text-sm leading-relaxed text-foreground/90 whitespace-pre-line">
+                                        {formState.answer}
+                                    </div>
+                                    <div className="pt-4 border-t flex items-center gap-2 text-[10px] text-muted-foreground font-bold uppercase tracking-tighter">
+                                        <Sparkles className="h-3 w-3" /> Powered by Gemini Advanced Thinking
+                                    </div>
                                 </div>
                             </div>
                         </CardContent>
                     </Card>
                 )}
                 {formState.error && (
-                    <p className="text-sm text-destructive mb-4">{formState.error}</p>
+                    <Card className="mb-4 bg-destructive/5 border-destructive/20 rounded-xl">
+                        <CardContent className="p-4 flex items-center gap-2 text-destructive text-sm font-medium">
+                            <p>{formState.error}</p>
+                        </CardContent>
+                    </Card>
+                )}
+                {!formState.answer && !formState.error && (
+                    <div className="flex flex-col items-center justify-center h-full text-center opacity-40 py-12">
+                        <BrainCircuit className="h-16 w-16 mb-4" />
+                        <p className="text-sm font-medium max-w-[200px]">Ask anything about your exam syllabus or lesson concepts.</p>
+                    </div>
                 )}
             </ScrollArea>
         </div>
-        <form action={formAction} className="p-6 border-t bg-background">
+        <form action={formAction} className="p-6 border-t bg-card mt-auto">
             <div className="grid gap-4">
                 <Textarea
                     name="question"
-                    placeholder="e.g., What are React Server Components?"
-                    className="min-h-[100px]"
+                    placeholder="e.g., Explain the visual shortcuts for solving quadratic equations in SSC exams..."
+                    className="min-h-[120px] rounded-2xl border-primary/10 focus-visible:ring-primary shadow-inner"
                     required
                 />
                 <SubmitButton />

@@ -1,8 +1,8 @@
 'use server';
 /**
- * @fileOverview An AI-powered Q&A tool for course materials.
+ * @fileOverview A professional AI educational consultant for exam preparation.
  *
- * - aiCourseQATool - A function that provides answers to student questions based on course material.
+ * - aiCourseQATool - A function that provides deep educational insights and answers.
  * - AICourseQAToolInput - The input type for the aiCourseQATool function.
  * - AICourseQAToolOutput - The return type for the aiCourseQATool function.
  */
@@ -13,11 +13,12 @@ import {z} from 'genkit';
 const AICourseQAToolInputSchema = z.object({
   question: z
     .string()
-    .describe("The student's question about the course material."),
+    .describe("The student's question about the course material or general exam topic."),
   courseMaterial: z
     .string()
+    .optional()
     .describe(
-      "The relevant course material content (text) to answer the question from."
+      "The relevant course material content (text) to provide context, if available."
     ),
 });
 export type AICourseQAToolInput = z.infer<typeof AICourseQAToolInputSchema>;
@@ -26,7 +27,7 @@ const AICourseQAToolOutputSchema = z.object({
   answer: z
     .string()
     .describe(
-      "The AI's answer to the question, based on the provided course material."
+      "The AI's comprehensive answer, integrating course context with professional educational knowledge."
     ),
 });
 export type AICourseQAToolOutput = z.infer<typeof AICourseQAToolOutputSchema>;
@@ -41,21 +42,29 @@ const prompt = ai.definePrompt({
   name: 'aiCourseQAToolPrompt',
   input: {schema: AICourseQAToolInputSchema},
   output: {schema: AICourseQAToolOutputSchema},
-  prompt: `You are an intelligent AI assistant specialized in providing clear and concise answers to student questions based *only* on the provided course material.
+  prompt: `You are a world-class educational consultant and expert teacher specializing in government competitive exams like SSC, Banking, Railways, and UPSC.
 
-Here is the course material:
+Your goal is to help students achieve "Rank 1" by providing deep, analytical, and highly professional answers.
+
+{{#if courseMaterial}}
+Here is the context from the current lesson:
 ---
 {{{courseMaterial}}}
 ---
+{{/if}}
 
-Here is the student's question:
+Student's Question:
 ---
 {{{question}}}
 ---
 
-Based solely on the provided course material, answer the student's question.
-If the answer cannot be found within the provided material, respond with "I'm sorry, but I cannot find an answer to your question in the provided course material."
-Do not use outside knowledge.`,
+Instructions:
+1. Use the provided course material as your primary source of truth if it contains the answer.
+2. CRITICAL: If the question is broader than the material, or if the student needs a deeper explanation, use your extensive internal knowledge of the subject matter, pedagogy, and exam trends.
+3. Don't just give a simple answer. Think broadly. Explain "the why" behind the concept.
+4. Provide shortcuts, mnemonics, or "Topper's Tips" where applicable for exam prep.
+5. Maintain a professional, encouraging, and highly intellectual tone.
+6. If the student asks something completely unrelated to education or exams, politely guide them back to their learning path.`,
 });
 
 const aiCourseQAToolFlow = ai.defineFlow(
