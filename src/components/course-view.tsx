@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useMemo, useEffect } from "react";
@@ -8,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { CheckCircle, Lock, Sparkles, BookOpen, VideoOff, Radio, FileText, ClipboardList, Loader2, ArrowRight, Trophy } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn, getEmbedUrl } from "@/lib/utils";
 import AiQaPanel from "./ai-qa-panel";
 import { ScrollArea } from "./ui/scroll-area";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
@@ -137,49 +136,93 @@ export default function CourseView({ course }: { course: Course }) {
             <TabsContent value="lecture">
                 {activeLecture && (
                     <div className="grid gap-6">
-                        <h1 className="text-3xl font-bold">{activeLecture.title}</h1>
+                        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                            <h1 className="text-3xl font-bold">{activeLecture.title}</h1>
+                            <Button 
+                                variant={completedLectures.has(activeLecture.id) ? "outline" : "default"} 
+                                onClick={() => toggleLectureComplete(activeLecture.id)}
+                                className="rounded-xl"
+                            >
+                                {completedLectures.has(activeLecture.id) ? (
+                                    <><CheckCircle className="mr-2 h-4 w-4 text-green-500" /> Lesson Completed</>
+                                ) : (
+                                    "Mark as Done"
+                                )}
+                            </Button>
+                        </div>
+
                         {activeLecture.type === 'video' ? (
-                            <div className="aspect-video bg-black rounded-2xl overflow-hidden border">
-                                <iframe className="w-full h-full" src={activeLecture.content.includes('youtube') ? activeLecture.content.replace('watch?v=', 'embed/') : activeLecture.content} allowFullScreen></iframe>
+                            <div className="aspect-video bg-black rounded-3xl overflow-hidden border shadow-2xl">
+                                <iframe 
+                                    className="w-full h-full" 
+                                    src={getEmbedUrl(activeLecture.content)} 
+                                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                                    allowFullScreen
+                                ></iframe>
                             </div>
-                        ) : <div className="p-8 border rounded-2xl bg-card whitespace-pre-line">{activeLecture.content}</div>}
-                        <Card className="bg-primary/5">
-                            <CardContent className="p-6">
-                                <p className="font-bold flex items-center gap-2 mb-2"><Sparkles className="h-4 w-4" /> AI Lesson Notes</p>
-                                <p className="text-sm text-muted-foreground">{activeLecture.summary || "Study notes pending."}</p>
-                                <Button onClick={() => setIsQaPanelOpen(true)} className="mt-4">Ask AI Assistant</Button>
+                        ) : (
+                            <div className="p-10 border rounded-3xl bg-card whitespace-pre-line text-lg leading-relaxed shadow-sm">
+                                {activeLecture.content}
+                            </div>
+                        )}
+
+                        <Card className="rounded-3xl border-primary/10 bg-primary/5 shadow-none">
+                            <CardContent className="p-8">
+                                <div className="flex items-center gap-2 mb-4 text-primary font-bold">
+                                    <Sparkles className="h-5 w-5" />
+                                    <span>AI Study Notes & Insights</span>
+                                </div>
+                                <p className="text-muted-foreground leading-relaxed italic">
+                                    {activeLecture.summary || "Our AI is currently analyzing this lesson. Detailed study notes will appear here soon."}
+                                </p>
+                                <div className="mt-8 flex gap-4">
+                                    <Button onClick={() => setIsQaPanelOpen(true)} className="rounded-xl h-12 px-6 font-bold shadow-lg shadow-primary/20">
+                                        Ask AI Assistant
+                                    </Button>
+                                    <Button variant="outline" className="rounded-xl h-12 px-6 font-bold">
+                                        Download PDF Notes
+                                    </Button>
+                                </div>
                             </CardContent>
                         </Card>
                     </div>
                 )}
             </TabsContent>
             <TabsContent value="materials">
-                <div className="text-center py-20 border-2 border-dashed rounded-3xl">
-                    <FileText className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                    <p>Chapter notes and practice PDFs will appear here.</p>
+                <div className="text-center py-20 border-2 border-dashed rounded-[2.5rem] bg-muted/20">
+                    <FileText className="h-16 w-16 mx-auto text-muted-foreground/30 mb-4" />
+                    <h3 className="text-xl font-bold font-headline">Study Resources</h3>
+                    <p className="text-muted-foreground mt-2 max-w-xs mx-auto text-sm">Chapter-wise notes, practice questions, and formula sheets will be uploaded here.</p>
                 </div>
             </TabsContent>
             <TabsContent value="tests">
                 <div className="grid gap-4">
                     {course.tests && course.tests.length > 0 ? (
                         course.tests.map((test) => (
-                            <div key={test.id} className="p-6 border rounded-2xl bg-card flex justify-between items-center group hover:border-primary/50 transition-all">
-                                <div>
-                                    <h3 className="text-xl font-bold">{test.title}</h3>
-                                    <p className="text-sm text-muted-foreground">{test.questions.length} Questions • {test.durationMinutes} Minutes</p>
+                            <div key={test.id} className="p-8 border rounded-[2rem] bg-card flex flex-col sm:flex-row justify-between items-start sm:items-center group hover:border-primary/50 transition-all shadow-sm">
+                                <div className="space-y-1">
+                                    <h3 className="text-2xl font-bold font-headline">{test.title}</h3>
+                                    <div className="flex items-center gap-3 text-sm text-muted-foreground">
+                                        <span className="flex items-center gap-1"><ClipboardList className="h-4 w-4" /> {test.questions.length} MCQs</span>
+                                        <span>•</span>
+                                        <span className="flex items-center gap-1"><Trophy className="h-4 w-4" /> {test.durationMinutes} Min</span>
+                                    </div>
                                     {enrollment?.testResults?.[test.id] !== undefined && (
-                                        <Badge className="mt-2" variant="secondary">Last Score: {enrollment.testResults[test.id]}%</Badge>
+                                        <Badge className="mt-3 bg-green-50 text-green-700 border-green-200 px-3 py-1 font-bold" variant="secondary">
+                                            Latest Performance: {enrollment.testResults[test.id]}%
+                                        </Badge>
                                     )}
                                 </div>
-                                <Button asChild className="rounded-xl shadow-lg shadow-primary/10">
-                                    <Link href={`/courses/${course.id}/tests/${test.id}`}>Start Mock Test</Link>
+                                <Button asChild size="lg" className="mt-4 sm:mt-0 rounded-2xl px-10 h-14 font-bold shadow-xl shadow-primary/10">
+                                    <Link href={`/courses/${course.id}/tests/${test.id}`}>Start Assessment</Link>
                                 </Button>
                             </div>
                         ))
                     ) : (
-                        <div className="text-center py-20 border-2 border-dashed rounded-3xl">
-                            <ClipboardList className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                            <p>No mock tests available for this program yet.</p>
+                        <div className="text-center py-20 border-2 border-dashed rounded-[2.5rem] bg-muted/20">
+                            <ClipboardList className="h-16 w-16 mx-auto text-muted-foreground/30 mb-4" />
+                            <h3 className="text-xl font-bold font-headline">Mock Tests</h3>
+                            <p className="text-muted-foreground mt-2 max-w-xs mx-auto text-sm">Mock tests for this program are being designed. Prepare for the full-length test soon!</p>
                         </div>
                     )}
                 </div>

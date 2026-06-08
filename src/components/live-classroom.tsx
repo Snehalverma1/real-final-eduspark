@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState } from 'react';
@@ -11,7 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Loader2, Video, LogOut, Youtube, AlertCircle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { cn } from '@/lib/utils';
+import { cn, getEmbedUrl } from '@/lib/utils';
 
 interface LiveClassroomProps {
   courseId: string;
@@ -34,38 +33,16 @@ export default function LiveClassroom({ courseId, isInstructor }: LiveClassroomP
 
   const { data: sessionData, isLoading: isSessionLoading } = useDoc(sessionRef);
 
-  const getVideoEmbedUrl = (url: string) => {
-    if (!url) return null;
-
-    // YouTube Check (including /live/ format)
-    const youtubeRegex = /(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=|live\/)|youtu\.be\/)([^"&?\/ ]{11})/;
-    const youtubeMatch = url.match(youtubeRegex);
-    if (youtubeMatch && youtubeMatch[1]) {
-      return `https://www.youtube.com/embed/${youtubeMatch[1]}?autoplay=1`;
-    }
-
-    // Vimeo Check
-    const vimeoRegex = /(?:vimeo\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|player\.vimeo\.com\/video\/|vimeo\.com\/)(?:channels\/(?:\w+\/)|groups\/(?:[^\/]*)\/videos\/|album\/(?:\d+)\/video\/|video\/|)(\d+)(?:\/(\w+))?/;
-    const vimeoMatch = url.match(vimeoRegex);
-    if (vimeoMatch) {
-      const videoId = vimeoMatch[1];
-      const hash = vimeoMatch[2];
-      let embed = `https://player.vimeo.com/video/${videoId}?autoplay=1&title=0&byline=0&portrait=0`;
-      if (hash) embed += `&h=${hash}`;
-      return embed;
-    }
-
-    return null;
-  };
-
   const handleStartStream = async () => {
     if (!sessionRef || !user || !streamUrl) {
       toast({ variant: "destructive", title: "Missing URL", description: "Please enter your YouTube link." });
       return;
     }
 
-    const embedUrl = getVideoEmbedUrl(streamUrl);
-    if (!embedUrl) {
+    const embedUrl = getEmbedUrl(streamUrl, { autoplay: true });
+    // Check if it's a valid video link (getEmbedUrl returns original if no match, 
+    // but our youtube match is specific)
+    if (!embedUrl || (!embedUrl.includes('youtube.com/embed') && !embedUrl.includes('player.vimeo.com/video'))) {
       toast({ variant: "destructive", title: "Invalid URL", description: "Please provide a valid YouTube or Vimeo link." });
       return;
     }
