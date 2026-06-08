@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { CourseCard } from "@/components/course-card";
 import { Input } from "@/components/ui/input";
-import { Search, Loader2, Award, BookOpen, Users, TrendingUp } from "lucide-react";
+import { Search, Loader2, Award, BookOpen, Users, TrendingUp, Sparkles } from "lucide-react";
 import { useFirestore, useCollection, useUser, useDoc, useMemoFirebase } from "@/firebase";
 import { collection, query, where, doc } from "firebase/firestore";
 import type { Course as CourseType } from "@/lib/data";
@@ -55,108 +55,189 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-background hero-gradient">
-      {/* Hero Section */}
-      <section className="relative overflow-hidden pt-16 pb-24 md:pt-24 md:pb-32">
-        <div className="container mx-auto px-4 relative z-10 text-center">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary/10 text-primary text-sm font-semibold mb-6 animate-in fade-in slide-in-from-bottom-3">
-            <Award className="h-4 w-4" />
-            #1 Trusted Platform for Govt Exams
-          </div>
-          <h1 className="text-5xl md:text-7xl font-bold font-headline tracking-tighter text-foreground mb-6 leading-none">
-            Ignite Your Career in <br />
-            <span className="text-primary">Government Services</span>
-          </h1>
-          <p className="mt-4 max-w-2xl mx-auto text-xl text-muted-foreground leading-relaxed">
-            Expert-led courses for SSC, Banking, Railways, and more. <br />
-            Learn from the best, clear the rest.
-          </p>
-          
-          <div className="mt-12 max-w-2xl mx-auto relative group">
-            <div className="absolute -inset-1 bg-gradient-to-r from-primary to-accent rounded-xl blur opacity-25 group-hover:opacity-50 transition duration-1000 group-hover:duration-200"></div>
-            <div className="relative flex items-center bg-card rounded-xl shadow-2xl border p-1 overflow-hidden">
-              <Search className="absolute left-4 h-5 w-5 text-muted-foreground" />
-              <Input 
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search for SSC CGL, Bank PO, RRB NTPC..." 
-                className="pl-12 h-14 text-lg border-none focus-visible:ring-0 shadow-none flex-1" 
-              />
-              <Button size="lg" className="h-12 px-8 font-bold hidden md:flex">Search Courses</Button>
+      {/* Premium Hero Section */}
+      <section className="relative overflow-hidden pt-12 pb-20 md:pt-24 md:pb-32 border-b bg-gradient-to-b from-primary/5 via-background to-background">
+        <div className="container mx-auto px-4 relative z-10">
+          <div className="flex flex-col items-center text-center">
+            <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-primary/10 text-primary text-xs md:text-sm font-bold mb-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
+              <Award className="h-4 w-4" />
+              <span>India's Most Trusted Learning Ecosystem for Civil & Govt. Services</span>
+            </div>
+            
+            <h1 className="text-4xl md:text-7xl font-bold font-headline tracking-tighter text-foreground mb-6 leading-[1.1] max-w-5xl">
+              Master Your Exams. <br />
+              <span className="text-primary relative inline-block">
+                Secure Your Future.
+                <svg className="absolute -bottom-2 left-0 w-full h-3 text-accent/30" viewBox="0 0 100 10" preserveAspectRatio="none">
+                  <path d="M0 5 Q 25 0, 50 5 T 100 5" fill="none" stroke="currentColor" strokeWidth="8" />
+                </svg>
+              </span>
+            </h1>
+            
+            <p className="mt-8 max-w-3xl mx-auto text-lg md:text-xl text-muted-foreground leading-relaxed">
+              Join elite educators to crack SSC CGL, Bank PO, Railways, and UPSC. 
+              Our AI-integrated curriculum ensures you stay ahead of the curve with real-time analytics and personalized live sessions.
+            </p>
+            
+            {/* Professional Search Hub */}
+            <div className="mt-12 w-full max-w-3xl mx-auto relative group">
+              <div className="absolute -inset-1 bg-gradient-to-r from-primary/20 via-accent/20 to-primary/20 rounded-2xl blur-xl opacity-50 group-hover:opacity-100 transition duration-1000"></div>
+              <div className="relative flex flex-col md:flex-row items-center bg-card rounded-2xl shadow-2xl border p-2 overflow-hidden backdrop-blur-sm">
+                <div className="flex-1 flex items-center w-full px-4">
+                  <Search className="h-5 w-5 text-muted-foreground" />
+                  <Input 
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="Search for SSC CGL, Banking, UPSC Prep..." 
+                    className="h-12 md:h-14 text-lg border-none focus-visible:ring-0 shadow-none flex-1 bg-transparent" 
+                  />
+                </div>
+                <div className="h-10 w-px bg-border hidden md:block mx-2" />
+                <Button size="lg" className="w-full md:w-auto h-12 md:h-14 px-10 font-bold rounded-xl shadow-lg shadow-primary/20 group-hover:scale-[1.02] transition-transform">
+                  Explore Now
+                </Button>
+              </div>
+            </div>
+
+            {/* Elite Stats Grid */}
+            <div className="mt-16 grid grid-cols-2 md:grid-cols-4 gap-8 md:gap-12 max-w-5xl w-full border-t pt-12">
+              <div className="flex flex-col items-center">
+                <div className="flex items-center gap-2 mb-1">
+                  <Users className="h-5 w-5 text-primary" />
+                  <span className="text-2xl md:text-3xl font-bold font-headline">500K+</span>
+                </div>
+                <span className="text-xs md:text-sm text-muted-foreground font-medium uppercase tracking-widest">Active Aspirants</span>
+              </div>
+              <div className="flex flex-col items-center">
+                <div className="flex items-center gap-2 mb-1">
+                  <TrendingUp className="h-5 w-5 text-green-500" />
+                  <span className="text-2xl md:text-3xl font-bold font-headline">94.8%</span>
+                </div>
+                <span className="text-xs md:text-sm text-muted-foreground font-medium uppercase tracking-widest">Selection Rate</span>
+              </div>
+              <div className="flex flex-col items-center">
+                <div className="flex items-center gap-2 mb-1">
+                  <BookOpen className="h-5 w-5 text-accent" />
+                  <span className="text-2xl md:text-3xl font-bold font-headline">1,200+</span>
+                </div>
+                <span className="text-xs md:text-sm text-muted-foreground font-medium uppercase tracking-widest">Expert Courses</span>
+              </div>
+              <div className="flex flex-col items-center">
+                <div className="flex items-center gap-2 mb-1">
+                  <Sparkles className="h-5 w-5 text-purple-500" />
+                  <span className="text-2xl md:text-3xl font-bold font-headline">AI+</span>
+                </div>
+                <span className="text-xs md:text-sm text-muted-foreground font-medium uppercase tracking-widest">Guided Learning</span>
+              </div>
             </div>
           </div>
+        </div>
+      </section>
 
-          <div className="mt-12 flex flex-wrap justify-center gap-8 md:gap-16 opacity-70">
-            <div className="flex items-center gap-2"><TrendingUp className="h-5 w-5 text-accent" /><span className="font-medium">95% Success Rate</span></div>
-            <div className="flex items-center gap-2"><Users className="h-5 w-5 text-accent" /><span className="font-medium">50K+ Aspirants</span></div>
-            <div className="flex items-center gap-2"><BookOpen className="h-5 w-5 text-accent" /><span className="font-medium">200+ Expert Classes</span></div>
+      {/* Dynamic Category Navigation */}
+      <section className="sticky top-14 z-40 bg-background/90 backdrop-blur-xl border-b shadow-sm">
+        <div className="container mx-auto px-4 py-3 md:py-4">
+          <div className="flex items-center justify-between gap-4">
+            <span className="hidden md:inline-block text-xs font-black uppercase tracking-widest text-muted-foreground whitespace-nowrap">Target Exam:</span>
+            <div className="flex items-center gap-2 overflow-x-auto pb-1 no-scrollbar flex-1 justify-start md:justify-center">
+              {categories.map((cat) => (
+                <button
+                  key={cat}
+                  onClick={() => setSelectedCategory(cat)}
+                  className={cn(
+                    "px-5 py-2 rounded-xl text-xs md:text-sm font-bold transition-all duration-300 border whitespace-nowrap",
+                    selectedCategory === cat 
+                      ? "bg-primary text-white border-primary shadow-lg shadow-primary/20 -translate-y-0.5" 
+                      : "bg-background text-muted-foreground hover:border-primary/50 hover:text-primary hover:bg-primary/5"
+                  )}
+                >
+                  {cat}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
       </section>
 
-      {/* Category Bar */}
-      <section className="sticky top-14 z-40 bg-background/80 backdrop-blur-md border-b">
-        <div className="container mx-auto px-4 py-4 overflow-x-auto">
-          <div className="flex items-center gap-2 min-w-max pb-1">
-            {categories.map((cat) => (
-              <button
-                key={cat}
-                onClick={() => setSelectedCategory(cat)}
-                className={cn(
-                  "px-6 py-2 rounded-full text-sm font-semibold transition-all duration-200 border",
-                  selectedCategory === cat 
-                    ? "bg-primary text-white border-primary shadow-lg shadow-primary/20 scale-105" 
-                    : "bg-card text-muted-foreground hover:border-primary/50 hover:text-primary"
-                )}
-              >
-                {cat}
-              </button>
-            ))}
+      {/* Main Course Grid */}
+      <section className="container mx-auto p-4 md:p-8 pt-16 pb-32">
+        <div className="flex flex-col md:flex-row items-end justify-between mb-12 gap-4">
+          <div className="max-w-xl">
+            <h2 className="text-3xl md:text-4xl font-bold font-headline">Top Rated Curriculums</h2>
+            <p className="text-muted-foreground mt-3 text-lg">
+              Explore meticulously designed study plans approved by former toppers and subject matter experts.
+            </p>
           </div>
-        </div>
-      </section>
-
-      {/* Courses Section */}
-      <section className="container mx-auto p-4 md:p-8 pt-12 pb-24">
-        <div className="flex items-end justify-between mb-10">
-          <div>
-            <h2 className="text-3xl md:text-4xl font-bold font-headline">Latest Exam Courses</h2>
-            <p className="text-muted-foreground mt-2">Hand-picked premium content for your success</p>
-          </div>
+          <Button variant="outline" className="rounded-xl border-primary/20 text-primary hover:bg-primary/5 hidden md:flex">View Exam Calendar</Button>
         </div>
 
         {isLoading ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
-            {[...Array(3)].map((_, i) => (
-              <div key={i} className="space-y-4 animate-pulse">
-                <div className="h-56 bg-muted rounded-2xl w-full"></div>
-                <div className="h-4 bg-muted rounded w-3/4"></div>
-                <div className="h-4 bg-muted rounded w-1/2"></div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-10">
+            {[...Array(6)].map((_, i) => (
+              <div key={i} className="space-y-6 animate-pulse bg-card p-4 rounded-3xl border border-border/50">
+                <div className="h-52 bg-muted rounded-2xl w-full"></div>
+                <div className="space-y-3">
+                  <div className="h-5 bg-muted rounded-full w-3/4"></div>
+                  <div className="h-5 bg-muted rounded-full w-1/2"></div>
+                </div>
+                <div className="flex justify-between items-center">
+                  <div className="h-8 w-8 rounded-full bg-muted"></div>
+                  <div className="h-8 w-24 rounded-full bg-muted"></div>
+                </div>
               </div>
             ))}
           </div>
         ) : formattedCourses && formattedCourses.length > 0 ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-10">
             {formattedCourses.map((course) => (
               <CourseCard key={course.id} course={course} />
             ))}
           </div>
         ) : (
-          <div className="text-center py-20 bg-card rounded-3xl border border-dashed">
-            <Search className="h-12 w-12 text-muted-foreground mx-auto mb-4 opacity-20" />
-            <h3 className="text-xl font-bold">No courses found</h3>
-            <p className="text-muted-foreground mt-1">Try adjusting your filters or search terms.</p>
+          <div className="text-center py-24 bg-card/30 rounded-[3rem] border border-dashed border-muted-foreground/20 backdrop-blur-sm">
+            <div className="bg-primary/5 h-20 w-20 rounded-full flex items-center justify-center mx-auto mb-6">
+              <Search className="h-8 w-8 text-primary opacity-40" />
+            </div>
+            <h3 className="text-2xl font-bold font-headline">No programs matching your search</h3>
+            <p className="text-muted-foreground mt-2 max-w-sm mx-auto">Try selecting a broader exam category or check back later for new course releases.</p>
+            <Button onClick={() => {setSelectedCategory("All"); setSearchQuery("");}} variant="link" className="mt-4 text-primary font-bold">Clear all filters</Button>
           </div>
         )}
       </section>
 
-      {/* Trust Section */}
-      <section className="bg-primary/5 py-24">
-        <div className="container mx-auto px-4 text-center">
-          <h2 className="text-3xl font-bold font-headline mb-4">Start Your Prep Today</h2>
-          <p className="text-muted-foreground mb-8 max-w-xl mx-auto">Join thousands of students who have already achieved their dream jobs with EduSpark's expert guidance.</p>
-          <div className="flex justify-center gap-4">
-            <Button size="lg" className="rounded-full px-10 h-14 text-lg">Browse All Exams</Button>
-            <Button size="lg" variant="outline" className="rounded-full px-10 h-14 text-lg bg-transparent">Watch Demo Class</Button>
+      {/* Corporate Trust Footer Section */}
+      <section className="bg-foreground text-background py-24 relative overflow-hidden">
+        <div className="absolute top-0 right-0 w-1/2 h-full bg-primary/10 blur-[100px] rounded-full -translate-y-1/2 translate-x-1/2" />
+        <div className="container mx-auto px-4 relative z-10">
+          <div className="grid md:grid-cols-2 gap-16 items-center">
+            <div>
+              <h2 className="text-4xl md:text-5xl font-bold font-headline mb-6">Ready to join India's top civil servants?</h2>
+              <p className="text-background/60 text-lg mb-10 leading-relaxed">
+                Our mobile-first learning experience is designed to fit into your busy schedule. Download the EduSpark guide or join a demo live class today.
+              </p>
+              <div className="flex flex-wrap gap-4">
+                <Button size="lg" className="rounded-xl px-10 h-14 text-lg font-bold bg-primary hover:bg-primary/90">Get Started Free</Button>
+                <Button size="lg" variant="outline" className="rounded-xl px-10 h-14 text-lg font-bold border-background/20 hover:bg-background/10 text-background">View Success Stories</Button>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="p-8 bg-background/5 border border-background/10 rounded-3xl backdrop-blur-md">
+                <h4 className="text-primary font-bold mb-2">SSC CGL</h4>
+                <p className="text-sm text-background/50">Target 2024 Prelims and Mains with intensive workshops.</p>
+              </div>
+              <div className="p-8 bg-background/5 border border-background/10 rounded-3xl backdrop-blur-md">
+                <h4 className="text-accent font-bold mb-2">Banking</h4>
+                <p className="text-sm text-background/50">Ace IBPS & SBI PO with our speed-math modules.</p>
+              </div>
+              <div className="p-8 bg-background/5 border border-background/10 rounded-3xl backdrop-blur-md">
+                <h4 className="text-green-500 font-bold mb-2">Railways</h4>
+                <p className="text-sm text-background/50">Comprehensive RRB NTPC batch starting every Monday.</p>
+              </div>
+              <div className="p-8 bg-background/5 border border-background/10 rounded-3xl backdrop-blur-md">
+                <h4 className="text-purple-500 font-bold mb-2">UPSC</h4>
+                <p className="text-sm text-background/50">CSAT and General Studies with daily current affairs.</p>
+              </div>
+            </div>
           </div>
         </div>
       </section>
