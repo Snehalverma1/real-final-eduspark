@@ -6,437 +6,55 @@
       "type": "object",
       "description": "Represents a user of the EduSpark platform, encompassing both students and instructors, storing their general profile information.",
       "properties": {
-        "id": {
-          "type": "string",
-          "description": "Unique identifier for the UserProfile entity."
-        },
-        "email": {
-          "type": "string",
-          "description": "The user's email address, used for communication and as a unique identifier for external authentication.",
-          "format": "email"
-        },
-        "name": {
-          "type": "string",
-          "description": "The full name of the user."
-        },
-        "bio": {
-          "type": "string",
-          "description": "A short biography or description provided by the user.",
-          "format": "text"
-        },
-        "profilePictureUrl": {
-          "type": "string",
-          "description": "URL to the user's profile picture.",
-          "format": "uri"
-        },
-        "role": {
-          "type": "string",
-          "description": "The role of the user on the platform.",
-          "enum": [
-            "student",
-            "subject-teacher",
-            "admin"
-          ]
-        },
-        "applicationStatus": {
-          "type": "string",
-          "description": "The status of a teacher's application, if applicable.",
-          "enum": [
-            "pending",
-            "approved",
-            "rejected"
-          ]
-        },
-        "subjects": {
-          "type": "array",
-          "description": "For subject teachers, a list of subjects they teach.",
-          "items": {
-            "type": "string"
-          }
-        },
-        "experience": {
-          "type": "string",
-          "description": "For subject teachers, a summary of their teaching experience.",
-          "format": "text"
-        },
-        "createdAt": {
-          "type": "string",
-          "description": "Timestamp when the user profile was created.",
-          "format": "date-time"
-        },
-        "updatedAt": {
-          "type": "string",
-          "description": "Timestamp when the user profile was last updated.",
-          "format": "date-time"
-        }
-      },
-      "required": [
-        "id",
-        "email",
-        "name",
-        "role",
-        "createdAt",
-        "updatedAt"
-      ]
-    },
-    "LiveSession": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
-      "title": "LiveSession",
-      "type": "object",
-      "description": "Represents an active YouTube Live teaching session for a course.",
-      "properties": {
         "id": { "type": "string" },
-        "courseId": { "type": "string" },
-        "instructorId": { "type": "string" },
-        "instructorName": { "type": "string" },
-        "status": { "type": "string", "enum": ["active", "ended"] },
-        "playbackUrl": { "type": "string", "description": "The YouTube embed URL." },
-        "originalUrl": { "type": "string", "description": "The original YouTube link." },
-        "createdAt": { "type": "string", "format": "date-time" }
+        "email": { "type": "string", "format": "email" },
+        "name": { "type": "string" },
+        "bio": { "type": "string" },
+        "profilePictureUrl": { "type": "string", "format": "uri" },
+        "role": { "type": "string", "enum": ["student", "subject-teacher", "admin"] },
+        "applicationStatus": { "type": "string", "enum": ["pending", "approved", "rejected"] },
+        "subjects": { "type": "array", "items": { "type": "string" } },
+        "experience": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
       },
-      "required": ["id", "courseId", "instructorId", "status", "playbackUrl", "createdAt"]
-    },
-    "Category": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
-      "title": "Category",
-      "type": "object",
-      "description": "Represents a subject category used to organize and classify courses.",
-      "properties": {
-        "id": {
-          "type": "string",
-          "description": "Unique identifier for the Category entity."
-        },
-        "name": {
-          "type": "string",
-          "description": "The name of the category (e.g., 'Programming', 'Marketing', 'Mathematics')."
-        },
-        "description": {
-          "type": "string",
-          "description": "A brief description of the category."
-        }
-      },
-      "required": [
-        "id",
-        "name"
-      ]
-    },
-    "Lecture": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
-      "title": "Lecture",
-      "type": "object",
-      "description": "Represents an individual lecture or content unit within a chapter.",
-      "properties": {
-        "id": {
-          "type": "string",
-          "description": "Unique identifier for the Lecture entity."
-        },
-        "title": {
-          "type": "string",
-          "description": "The title of the lecture."
-        },
-        "lectureNumber": {
-          "type": "number",
-          "description": "The sequential number of this lecture within its chapter."
-        },
-        "type": {
-          "type": "string",
-          "description": "The type of content for the lecture (e.g., 'video', 'text')."
-        },
-        "content": {
-          "type": "string",
-          "description": "The content of the lecture (URL for video, text for text)."
-        },
-        "durationSeconds": {
-          "type": "number",
-          "description": "The duration of the lecture in seconds."
-        }
-      },
-      "required": [
-        "id",
-        "title",
-        "lectureNumber",
-        "type",
-        "content"
-      ]
-    },
-    "Chapter": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
-      "title": "Chapter",
-      "type": "object",
-      "description": "Represents a chapter within a course, containing a list of lectures.",
-      "properties": {
-        "id": {
-          "type": "string",
-          "description": "Unique identifier for the Chapter entity."
-        },
-        "title": {
-          "type": "string",
-          "description": "The title of the chapter."
-        },
-        "order": {
-          "type": "number",
-          "description": "The sequential order of this chapter within its course."
-        },
-        "lectures": {
-          "type": "array",
-          "description": "An array of lectures that belong to this chapter.",
-          "items": {
-            "$ref": "#/backend/entities/Lecture"
-          }
-        }
-      },
-      "required": [
-        "id",
-        "title",
-        "order",
-        "lectures"
-      ]
+      "required": ["id", "email", "name", "role", "createdAt", "updatedAt"]
     },
     "Course": {
       "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "Course",
       "type": "object",
-      "description": "Represents an educational course offered on the platform, containing details about its content and instructor.",
+      "description": "Represents an educational course offered on the platform.",
       "properties": {
-        "id": {
-          "type": "string",
-          "description": "Unique identifier for the Course entity."
-        },
-        "title": {
-          "type": "string",
-          "description": "The title of the course."
-        },
-        "description": {
-          "type": "string",
-          "description": "A detailed description of the course content and objectives."
-        },
-        "instructorId": {
-          "type": "string",
-          "description": "Reference to the UserProfile of the instructor who created this course. (Relationship: UserProfile 1:N Course)"
-        },
-        "instructorName": {
-          "type": "string",
-          "description": "Denormalized name of the instructor for display purposes."
-        },
-        "instructorAvatarUrl": {
-          "type": "string",
-          "description": "Denormalized avatar URL of the instructor for display purposes.",
-          "format": "uri"
-        },
-        "thumbnailUrl": {
-          "type": "string",
-          "description": "URL to the thumbnail image for the course.",
-          "format": "uri"
-        },
-        "price": {
-          "type": "number",
-          "description": "The price of the course, if it is not free."
-        },
-        "difficultyLevel": {
-          "type": "string",
-          "description": "The designated difficulty level of the course (e.g., 'Beginner', 'Intermediate', 'Advanced')."
-        },
-        "categoryIds": {
-          "type": "array",
-          "description": "References to Category entities that this course belongs to. (Relationship: Category N:N Course)",
-          "items": {
-            "type": "string"
-          }
-        },
-        "targetClass": {
-          "type": "string",
-          "description": "The specific class this course is intended for (e.g., '8', '10')."
-        },
-        "chapters": {
-          "type": "array",
-          "description": "An array of chapters that make up the course.",
-          "items": {
-            "$ref": "#/backend/entities/Chapter"
-          }
-        },
-        "createdAt": {
-          "type": "string",
-          "description": "Timestamp when the course was created.",
-          "format": "date-time"
-        },
-        "updatedAt": {
-          "type": "string",
-          "description": "Timestamp when the course was last updated.",
-          "format": "date-time"
-        },
-        "status": {
-          "type": "string",
-          "description": "The current status of the course (e.g., 'Draft', 'Published', 'Archived')."
-        }
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "category": { "type": "string", "description": "Exam category: SSC, Banking, etc." },
+        "instructorId": { "type": "string" },
+        "instructorName": { "type": "string" },
+        "instructorAvatarUrl": { "type": "string", "format": "uri" },
+        "thumbnailUrl": { "type": "string", "format": "uri" },
+        "difficultyLevel": { "type": "string" },
+        "chapters": { "type": "array", "items": { "type": "object" } },
+        "status": { "type": "string", "enum": ["Published", "Draft"] },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
       },
-      "required": [
-        "id",
-        "title",
-        "description",
-        "instructorId",
-        "difficultyLevel",
-        "targetClass",
-        "chapters",
-        "createdAt",
-        "updatedAt",
-        "status"
-      ]
-    },
-    "Enrollment": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
-      "title": "Enrollment",
-      "type": "object",
-      "description": "Records a student's registration and overall progress for a specific course.",
-      "properties": {
-        "id": {
-          "type": "string",
-          "description": "Unique identifier for the Enrollment entity."
-        },
-        "studentId": {
-          "type": "string",
-          "description": "Reference to the UserProfile of the student who enrolled. (Relationship: UserProfile 1:N Enrollment)"
-        },
-        "courseId": {
-          "type": "string",
-          "description": "Reference to the Course the student is enrolled in. (Relationship: Course 1:N Enrollment)"
-        },
-        "enrollmentDate": {
-          "type": "string",
-          "description": "Timestamp when the student enrolled in the course.",
-          "format": "date-time"
-        },
-        "completionDate": {
-          "type": "string",
-          "description": "Timestamp when the student completed the course.",
-          "format": "date-time"
-        },
-        "status": {
-          "type": "string",
-          "description": "The current status of the enrollment (e.g., 'InProgress', 'Completed', 'Dropped')."
-        },
-        "overallProgressPercentage": {
-          "type": "number",
-          "description": "The calculated overall progress of the student within the course, from 0 to 100."
-        }
-      },
-      "required": [
-        "id",
-        "studentId",
-        "courseId",
-        "enrollmentDate",
-        "status"
-      ]
+      "required": ["id", "title", "category", "instructorId", "status", "createdAt", "updatedAt"]
     }
   },
   "auth": {
-    "providers": [
-      "password",
-      "anonymous"
-    ]
+    "providers": ["password", "anonymous"]
   },
   "firestore": {
     "structure": [
       {
         "path": "/userProfiles/{userId}",
-        "definition": {
-          "entityName": "UserProfile",
-          "schema": {
-            "$ref": "#/backend/entities/UserProfile"
-          },
-          "description": "Stores individual user profiles.",
-          "params": [
-            {
-              "name": "userId",
-              "description": "The Firebase Authentication UID of the user."
-            }
-          ]
-        }
-      },
-      {
-        "path": "/courses/{courseId}/liveSessions/{sessionId}",
-        "definition": {
-          "entityName": "LiveSession",
-          "schema": {
-            "$ref": "#/backend/entities/LiveSession"
-          },
-          "description": "Active live sessions for a course.",
-          "params": [
-            { "name": "courseId" },
-            { "name": "sessionId" }
-          ]
-        }
-      },
-      {
-        "path": "/categories/{categoryId}",
-        "definition": {
-          "entityName": "Category",
-          "schema": {
-            "$ref": "#/backend/entities/Category"
-          },
-          "description": "Public collection of course categories.",
-          "params": [
-            {
-              "name": "categoryId",
-              "description": "Unique identifier for the category."
-            }
-          ]
-        }
+        "definition": { "entityName": "UserProfile", "schema": { "$ref": "#/backend/entities/UserProfile" } }
       },
       {
         "path": "/courses/{courseId}",
-        "definition": {
-          "entityName": "Course",
-          "schema": {
-            "$ref": "#/backend/entities/Course"
-          },
-          "description": "Stores courses with 'Published' or 'Archived' status.",
-          "params": [
-            {
-              "name": "courseId",
-              "description": "Unique identifier for the published/archived course."
-            }
-          ]
-        }
-      },
-      {
-        "path": "/users/{instructorId}/draftCourses/{courseId}",
-        "definition": {
-          "entityName": "Course",
-          "schema": {
-            "$ref": "#/backend/entities/Course"
-          },
-          "description": "Stores courses in 'Draft' status.",
-          "params": [
-            {
-              "name": "instructorId",
-              "description": "The Firebase Authentication UID of the instructor."
-            },
-            {
-              "name": "courseId",
-              "description": "Unique identifier for the draft course."
-            }
-          ]
-        }
-      },
-      {
-        "path": "/users/{studentId}/enrollments/{courseId}",
-        "definition": {
-          "entityName": "Enrollment",
-          "schema": {
-            "$ref": "#/backend/entities/Enrollment"
-          },
-          "description": "Tracks a student's enrollment in a course.",
-          "params": [
-            {
-              "name": "studentId",
-              "description": "The Firebase Authentication UID of the student."
-            },
-            {
-              "name": "courseId",
-              "description": "Unique identifier for the course the student is enrolled in."
-            }
-          ]
-        }
+        "definition": { "entityName": "Course", "schema": { "$ref": "#/backend/entities/Course" } }
       }
     ]
   }

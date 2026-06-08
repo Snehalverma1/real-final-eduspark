@@ -16,13 +16,14 @@ import {
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { PlusCircle, Trash2, Book, Film, Loader2, ShieldAlert } from "lucide-react";
+import { PlusCircle, Trash2, Book, Film, Loader2, ShieldAlert, Layers } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { useUser, useFirestore, useDoc, useMemoFirebase, errorEmitter, FirestorePermissionError } from "@/firebase";
 import { doc, collection, setDoc } from 'firebase/firestore';
 import { useToast } from "@/hooks/use-toast";
 import { useRouter } from "next/navigation";
+import { categories } from "@/lib/data";
 
 const lectureSchema = z.object({
   lectureNumber: z.coerce.number().min(1, "Lecture number is required."),
@@ -40,7 +41,7 @@ const chapterSchema = z.object({
 const courseSchema = z.object({
   title: z.string().min(5, "Title must be at least 5 characters."),
   description: z.string().min(20, "Description must be at least 20 characters."),
-  targetClass: z.string({ required_error: "Please select a target class."}),
+  category: z.string({ required_error: "Please select an exam category." }),
   difficultyLevel: z.enum(['Beginner', 'Intermediate', 'Advanced'], { required_error: "Please select a difficulty level." }),
   chapters: z.array(chapterSchema).min(1, "At least one chapter is required."),
 });
@@ -66,6 +67,7 @@ export default function CreateCoursePage() {
     defaultValues: {
       title: "",
       description: "",
+      category: "",
       chapters: [],
     },
   });
@@ -98,11 +100,11 @@ export default function CreateCoursePage() {
       id: courseId,
       title: data.title,
       description: data.description,
+      category: data.category,
       instructorId: user.uid,
       instructorName: user.displayName || 'Instructor',
       instructorAvatarUrl: user.photoURL || `https://picsum.photos/seed/${user.uid}/40/40`,
       status: 'Published' as const,
-      targetClass: data.targetClass,
       difficultyLevel: data.difficultyLevel,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
@@ -126,7 +128,7 @@ export default function CreateCoursePage() {
       .then(() => {
         toast({
           title: "Course Published!",
-          description: "Your new course is now live and visible to students.",
+          description: "Your new exam course is now live.",
         });
         router.push('/');
       })
@@ -137,12 +139,6 @@ export default function CreateCoursePage() {
             requestResourceData: finalCourseData,
         });
         errorEmitter.emit('permission-error', permissionError);
-          
-        toast({
-          variant: "destructive",
-          title: "Uh oh! Something went wrong.",
-          description: "Could not publish the course. Please check your permissions and try again.",
-        });
       })
       .finally(() => {
           setIsSaving(false);
@@ -157,27 +153,13 @@ export default function CreateCoursePage() {
     );
   }
 
-  if (!user) {
-    return (
-       <div className="flex flex-col items-center justify-center min-h-[calc(100vh-4rem)] text-center p-4">
-        <h1 className="text-3xl font-bold font-headline">Access Denied</h1>
-        <p className="text-muted-foreground mt-2">
-          You must be logged in to create a course.
-        </p>
-        <Button onClick={() => router.push('/login')} className="mt-4">Login</Button>
-      </div>
-    )
-  }
-
   if (userProfile?.role === 'student' || userProfile?.applicationStatus !== 'approved') {
     return (
       <div className="flex flex-col items-center justify-center min-h-[calc(100vh-4rem)] text-center p-4">
         <ShieldAlert className="h-16 w-16 text-destructive mb-4" />
         <h1 className="text-3xl font-bold font-headline">Access Denied</h1>
         <p className="text-muted-foreground mt-2 max-w-md">
-          {userProfile?.role === 'student'
-            ? 'You do not have permission to create courses.'
-            : 'Your teacher application has not been approved yet. You cannot create courses at this time.'}
+          Teacher approval is required to publish exam courses.
         </p>
       </div>
     );
@@ -185,12 +167,21 @@ export default function CreateCoursePage() {
 
   return (
     <div className="container mx-auto max-w-4xl p-4 md:p-8">
-      <h1 className="text-3xl md:text-4xl font-bold font-headline mb-8">Create a New Course</h1>
+      <div className="flex items-center gap-4 mb-8">
+        <div className="p-3 bg-primary/10 rounded-2xl">
+          <Layers className="h-8 w-8 text-primary" />
+        </div>
+        <div>
+          <h1 className="text-3xl font-bold font-headline">Create Exam Course</h1>
+          <p className="text-muted-foreground">Fill in the details for your new government exam prep course.</p>
+        </div>
+      </div>
+
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
-          <Card>
+          <Card className="rounded-3xl border-primary/10 shadow-xl shadow-primary/5">
             <CardHeader>
-              <CardTitle className="font-headline text-2xl">Course Details</CardTitle>
+              <CardTitle className="font-headline text-2xl">Course Information</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <FormField
@@ -198,9 +189,9 @@ export default function CreateCoursePage() {
                 name="title"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Course Title</FormLabel>
+                    <FormLabel>Course Title (e.g., SSC CGL Quantitative Aptitude)</FormLabel>
                     <FormControl>
-                      <Input placeholder="e.g., Advanced TypeScript" {...field} />
+                      <Input placeholder="Enter title" className="rounded-xl h-12" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -211,11 +202,11 @@ export default function CreateCoursePage() {
                 name="description"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Course Description</FormLabel>
+                    <FormLabel>Brief Description</FormLabel>
                     <FormControl>
                       <Textarea
-                        placeholder="Describe your course in detail..."
-                        className="min-h-32"
+                        placeholder="What will students learn in this exam prep?"
+                        className="min-h-32 rounded-xl"
                         {...field}
                       />
                     </FormControl>
@@ -226,19 +217,19 @@ export default function CreateCoursePage() {
               <div className="grid md:grid-cols-2 gap-4">
                 <FormField
                     control={form.control}
-                    name="targetClass"
+                    name="category"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Target Class</FormLabel>
+                        <FormLabel>Exam Category</FormLabel>
                         <Select onValueChange={field.onChange} defaultValue={field.value}>
                           <FormControl>
-                            <SelectTrigger>
-                              <SelectValue placeholder="Select class" />
+                            <SelectTrigger className="rounded-xl h-12">
+                              <SelectValue placeholder="Select Category" />
                             </SelectTrigger>
                           </FormControl>
                           <SelectContent>
-                            {[...Array(12)].map((_, i) => (
-                              <SelectItem key={i + 1} value={`${i + 1}`}>{`Class ${i + 1}`}</SelectItem>
+                            {categories.filter(c => c !== "All").map(cat => (
+                              <SelectItem key={cat} value={cat}>{cat}</SelectItem>
                             ))}
                           </SelectContent>
                         </Select>
@@ -254,7 +245,7 @@ export default function CreateCoursePage() {
                         <FormLabel>Difficulty Level</FormLabel>
                         <Select onValueChange={field.onChange} defaultValue={field.value}>
                           <FormControl>
-                            <SelectTrigger>
+                            <SelectTrigger className="rounded-xl h-12">
                               <SelectValue placeholder="Select difficulty" />
                             </SelectTrigger>
                           </FormControl>
@@ -273,24 +264,26 @@ export default function CreateCoursePage() {
           </Card>
 
           <div className="space-y-4">
-            <h2 className="text-2xl font-headline">Chapters</h2>
+            <h2 className="text-2xl font-headline flex items-center gap-2">
+              <Book className="h-6 w-6 text-primary" />
+              Content Chapters
+            </h2>
             {chapterFields.map((chapter, chapterIndex) => (
               <ChapterForm key={chapter.id} chapterIndex={chapterIndex} form={form} removeChapter={removeChapter} />
             ))}
             <Button
               type="button"
               variant="outline"
-              onClick={() => appendChapter({ title: "", lectures: [{ lectureNumber: 1, title: "", type: "text", content: "", duration: 5 }] })}
-              className="w-full"
+              onClick={() => appendChapter({ title: "", lectures: [{ lectureNumber: 1, title: "", type: "text", content: "", duration: 15 }] })}
+              className="w-full h-14 rounded-2xl border-dashed border-2 hover:bg-primary/5 border-primary/20"
             >
-              <PlusCircle className="mr-2 h-4 w-4" /> Add Chapter
+              <PlusCircle className="mr-2 h-5 w-5" /> Add Chapter
             </Button>
-             <FormMessage>{form.formState.errors.chapters?.message}</FormMessage>
           </div>
 
-          <Button type="submit" size="lg" className="w-full" disabled={isBusy}>
-            {isBusy && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            Publish Course
+          <Button type="submit" size="lg" className="w-full h-14 rounded-2xl text-lg font-bold shadow-xl shadow-primary/20" disabled={isBusy}>
+            {isBusy && <Loader2 className="mr-2 h-5 w-5 animate-spin" />}
+            Publish Exam Course
           </Button>
         </form>
       </Form>
@@ -298,33 +291,27 @@ export default function CreateCoursePage() {
   );
 }
 
-
-type ChapterFormProps = {
-  chapterIndex: number;
-  form: any;
-  removeChapter: (index: number) => void;
-};
-
-function ChapterForm({ chapterIndex, form, removeChapter }: ChapterFormProps) {
+function ChapterForm({ chapterIndex, form, removeChapter }: any) {
   const { fields: lectureFields, append: appendLecture, remove: removeLecture } = useFieldArray({
     control: form.control,
     name: `chapters.${chapterIndex}.lectures`,
   });
 
   return (
-    <Card className="bg-card/50">
-      <CardHeader className="flex flex-row items-center justify-between">
-        <CardTitle>Chapter {chapterIndex + 1}</CardTitle>
+    <Card className="bg-card border-primary/5 rounded-3xl overflow-hidden shadow-lg">
+      <CardHeader className="flex flex-row items-center justify-between bg-primary/5">
+        <CardTitle className="text-lg">Chapter {chapterIndex + 1}</CardTitle>
         <Button
             type="button"
-            variant="destructive"
+            variant="ghost"
             size="icon"
             onClick={() => removeChapter(chapterIndex)}
+            className="text-destructive hover:bg-destructive/10"
           >
             <Trash2 className="h-4 w-4" />
           </Button>
       </CardHeader>
-      <CardContent className="space-y-6">
+      <CardContent className="space-y-6 pt-6">
         <FormField
           control={form.control}
           name={`chapters.${chapterIndex}.title`}
@@ -332,19 +319,19 @@ function ChapterForm({ chapterIndex, form, removeChapter }: ChapterFormProps) {
             <FormItem>
               <FormLabel>Chapter Title</FormLabel>
               <FormControl>
-                <Input placeholder="e.g., Introduction to..." {...field} />
+                <Input placeholder="e.g., Number Systems" className="rounded-xl h-11" {...field} />
               </FormControl>
               <FormMessage />
             </FormItem>
           )}
         />
-        <Separator />
+        
         <div className="space-y-4">
-            <h3 className="font-semibold">Lectures</h3>
+            <h3 className="font-semibold text-sm uppercase tracking-wider text-muted-foreground">Lectures</h3>
             {lectureFields.map((lecture, lectureIndex) => (
-              <div key={lecture.id} className="p-4 border rounded-lg relative space-y-4 bg-background">
+              <div key={lecture.id} className="p-6 border rounded-2xl relative space-y-4 bg-muted/30">
                 <div className="flex justify-between items-center">
-                    <p className="font-semibold">Lecture {lectureIndex + 1}</p>
+                    <p className="font-bold text-primary">Lecture {lectureIndex + 1}</p>
                     <Button
                         type="button"
                         variant="ghost"
@@ -354,74 +341,53 @@ function ChapterForm({ chapterIndex, form, removeChapter }: ChapterFormProps) {
                         <Trash2 className="h-4 w-4 text-destructive" />
                     </Button>
                 </div>
-                 <FormField
+                <div className="grid md:grid-cols-3 gap-4">
+                    <div className="md:col-span-2">
+                        <FormField
+                            control={form.control}
+                            name={`chapters.${chapterIndex}.lectures.${lectureIndex}.title`}
+                            render={({ field }) => (
+                                <FormItem>
+                                <FormLabel>Title</FormLabel>
+                                <FormControl>
+                                    <Input placeholder="Simplification Tips" className="rounded-xl" {...field} />
+                                </FormControl>
+                                <FormMessage />
+                                </FormItem>
+                            )}
+                        />
+                    </div>
+                    <FormField
                     control={form.control}
-                    name={`chapters.${chapterIndex}.lectures.${lectureIndex}.lectureNumber`}
+                    name={`chapters.${chapterIndex}.lectures.${lectureIndex}.type`}
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Lecture Number</FormLabel>
-                        <FormControl>
-                          <Input type="number" placeholder="1" {...field} />
-                        </FormControl>
+                        <FormLabel>Type</FormLabel>
+                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                          <FormControl>
+                            <SelectTrigger className="rounded-xl">
+                              <SelectValue placeholder="Type" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value="text">Text Lesson</SelectItem>
+                            <SelectItem value="video">Video Lesson</SelectItem>
+                          </SelectContent>
+                        </Select>
                         <FormMessage />
                       </FormItem>
                     )}
                   />
-                <FormField
-                  control={form.control}
-                  name={`chapters.${chapterIndex}.lectures.${lectureIndex}.title`}
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Lecture Title</FormLabel>
-                      <FormControl>
-                        <Input placeholder="What are server components?" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name={`chapters.${chapterIndex}.lectures.${lectureIndex}.type`}
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Lecture Type</FormLabel>
-                      <Select onValueChange={field.onChange} defaultValue={field.value}>
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select lesson type" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          <SelectItem value="text"><Book className="inline-block mr-2 h-4 w-4"/>Text</SelectItem>
-                          <SelectItem value="video"><Film className="inline-block mr-2 h-4 w-4"/>Video</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+                </div>
+                
                 <FormField
                   control={form.control}
                   name={`chapters.${chapterIndex}.lectures.${lectureIndex}.content`}
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Content</FormLabel>
+                      <FormLabel>Content (YouTube Link or Text)</FormLabel>
                       <FormControl>
-                         <Textarea className="min-h-24" placeholder={form.watch(`chapters.${chapterIndex}.lectures.${lectureIndex}.type`) === 'video' ? "Enter video URL from Vimeo or YouTube" : "Enter lesson text..."} {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                 <FormField
-                  control={form.control}
-                  name={`chapters.${chapterIndex}.lectures.${lectureIndex}.duration`}
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Duration (minutes)</FormLabel>
-                      <FormControl>
-                        <Input type="number" placeholder="e.g., 15" {...field} />
+                         <Textarea className="min-h-24 rounded-xl" placeholder="URL or lesson text..." {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -429,14 +395,13 @@ function ChapterForm({ chapterIndex, form, removeChapter }: ChapterFormProps) {
                 />
               </div>
             ))}
-            <FormMessage>{form.formState.errors.chapters?.[chapterIndex]?.lectures?.message}</FormMessage>
             <Button
-            type="button"
-            variant="outline"
-            onClick={() => appendLecture({ lectureNumber: lectureFields.length + 1, title: "", type: "text", content: "", duration: 5 })}
-            className="w-full"
+                type="button"
+                variant="ghost"
+                onClick={() => appendLecture({ lectureNumber: lectureFields.length + 1, title: "", type: "text", content: "", duration: 15 })}
+                className="w-full text-primary hover:bg-primary/5 rounded-xl"
             >
-            <PlusCircle className="mr-2 h-4 w-4" /> Add Lecture
+                <PlusCircle className="mr-2 h-4 w-4" /> Add Lecture to Chapter
             </Button>
         </div>
       </CardContent>
