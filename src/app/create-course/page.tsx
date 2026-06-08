@@ -12,13 +12,13 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
+  FormDescription,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { PlusCircle, Trash2, Book, Film, Loader2, ShieldAlert, Layers } from "lucide-react";
+import { PlusCircle, Trash2, Book, Film, Loader2, ShieldAlert, Layers, Sparkles } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Separator } from "@/components/ui/separator";
 import { useUser, useFirestore, useDoc, useMemoFirebase, errorEmitter, FirestorePermissionError } from "@/firebase";
 import { doc, collection, setDoc } from 'firebase/firestore';
 import { useToast } from "@/hooks/use-toast";
@@ -29,7 +29,8 @@ const lectureSchema = z.object({
   lectureNumber: z.coerce.number().min(1, "Lecture number is required."),
   title: z.string().min(3, "Lecture title must be at least 3 characters."),
   type: z.enum(["video", "text"], { required_error: "Please select a type."}),
-  content: z.string().min(10, "Content is required."),
+  content: z.string().min(5, "Content (URL or Text) is required."),
+  summary: z.string().min(10, "Summary/Notes for AI context is required.").describe("AI uses this to answer questions about the video."),
   duration: z.coerce.number().min(1, "Duration must be at least 1 minute."),
 });
 
@@ -68,7 +69,7 @@ export default function CreateCoursePage() {
       title: "",
       description: "",
       category: "",
-      chapters: [],
+      chapters: [{ title: "Chapter 1", lectures: [{ lectureNumber: 1, title: "", type: "video", content: "", summary: "", duration: 15 }] }],
     },
   });
 
@@ -153,7 +154,7 @@ export default function CreateCoursePage() {
     );
   }
 
-  if (userProfile?.role === 'student' || userProfile?.applicationStatus !== 'approved') {
+  if (userProfile?.role === 'student' || (userProfile?.role === 'subject-teacher' && userProfile?.applicationStatus !== 'approved')) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[calc(100vh-4rem)] text-center p-4">
         <ShieldAlert className="h-16 w-16 text-destructive mb-4" />
@@ -274,7 +275,7 @@ export default function CreateCoursePage() {
             <Button
               type="button"
               variant="outline"
-              onClick={() => appendChapter({ title: "", lectures: [{ lectureNumber: 1, title: "", type: "text", content: "", duration: 15 }] })}
+              onClick={() => appendChapter({ title: "", lectures: [{ lectureNumber: 1, title: "", type: "video", content: "", summary: "", duration: 15 }] })}
               className="w-full h-14 rounded-2xl border-dashed border-2 hover:bg-primary/5 border-primary/20"
             >
               <PlusCircle className="mr-2 h-5 w-5" /> Add Chapter
@@ -385,9 +386,29 @@ function ChapterForm({ chapterIndex, form, removeChapter }: any) {
                   name={`chapters.${chapterIndex}.lectures.${lectureIndex}.content`}
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Content (YouTube Link or Text)</FormLabel>
+                      <FormLabel>Content (YouTube Link or Lesson Text)</FormLabel>
                       <FormControl>
-                         <Textarea className="min-h-24 rounded-xl" placeholder="URL or lesson text..." {...field} />
+                         <Textarea className="min-h-24 rounded-xl" placeholder="URL for videos, or full lesson text..." {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name={`chapters.${chapterIndex}.lectures.${lectureIndex}.summary`}
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="flex items-center gap-1.5">
+                        <Sparkles className="h-3.5 w-3.5 text-primary" />
+                        AI Study Notes & Summary
+                      </FormLabel>
+                      <FormDescription>
+                        Crucial for videos! Provide key points or a transcription so the AI assistant can answer student questions accurately.
+                      </FormDescription>
+                      <FormControl>
+                         <Textarea className="min-h-32 rounded-xl border-primary/20" placeholder="Provide a summary of the lesson content for the AI assistant..." {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -398,7 +419,7 @@ function ChapterForm({ chapterIndex, form, removeChapter }: any) {
             <Button
                 type="button"
                 variant="ghost"
-                onClick={() => appendLecture({ lectureNumber: lectureFields.length + 1, title: "", type: "text", content: "", duration: 15 })}
+                onClick={() => appendLecture({ lectureNumber: lectureFields.length + 1, title: "", type: "video", content: "", summary: "", duration: 15 })}
                 className="w-full text-primary hover:bg-primary/5 rounded-xl"
             >
                 <PlusCircle className="mr-2 h-4 w-4" /> Add Lecture to Chapter

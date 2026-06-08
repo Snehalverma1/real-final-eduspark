@@ -2,8 +2,10 @@ export type Lecture = {
   id: string;
   title: string;
   type: 'video' | 'text';
-  content: string;
+  content: string; // URL for video, full text for text lesson
+  summary?: string; // Summary or transcription for AI context
   duration: number; // in minutes
+  lectureNumber?: number;
 };
 
 export type Chapter = {
@@ -24,6 +26,7 @@ export type Course = {
   thumbnailUrl: string;
   thumbnailHint: string;
   chapters: Chapter[];
+  targetClass?: string;
 };
 
 export const categories = [

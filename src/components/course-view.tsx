@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useMemo, useEffect } from "react";
@@ -125,11 +124,15 @@ export default function CourseView({ course }: { course: Course }) {
 
   const getVideoEmbedUrl = (url: string): string => {
     if (!url) return "";
+    
+    // YouTube Support
     const youtubeRegex = /(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=|live\/)|youtu\.be\/)([^"&?\/ ]{11})/;
     const youtubeMatch = url.match(youtubeRegex);
     if (youtubeMatch && youtubeMatch[1]) {
         return `https://www.youtube.com/embed/${youtubeMatch[1]}?autoplay=1`;
     }
+
+    // Vimeo Support
     const vimeoRegex = /(?:vimeo\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|player\.vimeo\.com\/video\/|vimeo\.com\/)(?:channels\/(?:\w+\/)|groups\/(?:[^\/]*)\/videos\/|album\/(?:\d+)\/video\/|video\/|)(\d+)(?:\/(\w+))?/;
     const vimeoMatch = url.match(vimeoRegex);
     if (vimeoMatch) {
@@ -139,8 +142,22 @@ export default function CourseView({ course }: { course: Course }) {
       if (hash) embedUrl += `&h=${hash}`;
       return embedUrl;
     }
+
     return url;
   };
+
+  // Combine title, content (if text), and summary for AI context
+  const aiContext = useMemo(() => {
+    if (!activeLecture) return "";
+    let context = `Lesson Title: ${activeLecture.title}\n\n`;
+    if (activeLecture.type === 'text') {
+      context += `Content:\n${activeLecture.content}\n\n`;
+    }
+    if (activeLecture.summary) {
+      context += `Teacher's Summary/Notes:\n${activeLecture.summary}`;
+    }
+    return context;
+  }, [activeLecture]);
 
   return (
     <div className="grid md:grid-cols-[350px_1fr] min-h-[calc(100vh-4rem)]">
@@ -216,29 +233,43 @@ export default function CourseView({ course }: { course: Course }) {
                     </TabsList>
 
                     <TabsContent value="lecture">
-                        {activeLecture.type === 'video' ? (
-                        <div className="aspect-video w-full rounded-2xl overflow-hidden border bg-black shadow-2xl">
-                            <iframe
-                            key={activeLecture.id}
-                            className="w-full h-full"
-                            src={getVideoEmbedUrl(activeLecture.content)}
-                            title="Course video player"
-                            frameBorder="0"
-                            allow="autoplay; fullscreen; picture-in-picture"
-                            allowFullScreen
-                            ></iframe>
-                        </div>
-                        ) : (
-                        <ScrollArea className="h-[60vh] rounded-2xl border bg-card">
-                            <div className="p-8 leading-relaxed text-lg whitespace-pre-line">
-                            {activeLecture.content}
-                            </div>
-                        </ScrollArea>
-                        )}
-                        <div className="mt-6 flex justify-end">
-                             <Button onClick={() => setIsQaPanelOpen(true)} className="rounded-xl bg-primary text-white shadow-xl shadow-primary/20">
-                                <Sparkles className="mr-2 h-4 w-4" /> Ask AI Assistant
-                            </Button>
+                        <div className="grid gap-6">
+                          {activeLecture.type === 'video' ? (
+                          <div className="aspect-video w-full rounded-2xl overflow-hidden border bg-black shadow-2xl">
+                              <iframe
+                              key={activeLecture.id}
+                              className="w-full h-full"
+                              src={getVideoEmbedUrl(activeLecture.content)}
+                              title="Course video player"
+                              frameBorder="0"
+                              allow="autoplay; fullscreen; picture-in-picture"
+                              allowFullScreen
+                              ></iframe>
+                          </div>
+                          ) : (
+                          <ScrollArea className="h-[60vh] rounded-2xl border bg-card">
+                              <div className="p-8 leading-relaxed text-lg whitespace-pre-line">
+                              {activeLecture.content}
+                              </div>
+                          </ScrollArea>
+                          )}
+                          
+                          <Card className="border-primary/10 bg-primary/5">
+                            <CardContent className="p-6">
+                              <div className="flex items-center gap-2 mb-4 text-primary font-bold">
+                                <Sparkles className="h-5 w-5" />
+                                <span>Lesson Summary & Notes</span>
+                              </div>
+                              <p className="text-sm leading-relaxed text-muted-foreground whitespace-pre-line">
+                                {activeLecture.summary || "No summary provided for this lesson."}
+                              </p>
+                              <div className="mt-6 flex justify-end">
+                                <Button onClick={() => setIsQaPanelOpen(true)} className="rounded-xl bg-primary text-white shadow-xl shadow-primary/20">
+                                    <Sparkles className="mr-2 h-4 w-4" /> Ask AI Assistant
+                                </Button>
+                              </div>
+                            </CardContent>
+                          </Card>
                         </div>
                     </TabsContent>
 
@@ -279,7 +310,7 @@ export default function CourseView({ course }: { course: Course }) {
       {activeLecture && <AiQaPanel
         isOpen={isQaPanelOpen}
         setIsOpen={setIsQaPanelOpen}
-        courseMaterial={activeLecture.type === 'text' ? activeLecture.content : 'This is a video lesson. Q&A is only available for text-based content.'}
+        courseMaterial={aiContext}
       />}
     </div>
   );
