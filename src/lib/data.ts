@@ -1,3 +1,4 @@
+
 export type Lecture = {
   id: string;
   title: string;
@@ -14,6 +15,20 @@ export type Chapter = {
   lectures: Lecture[];
 }
 
+export type Question = {
+  id: string;
+  question: string;
+  options: string[];
+  correctAnswerIndex: number;
+};
+
+export type Test = {
+  id: string;
+  title: string;
+  durationMinutes: number;
+  questions: Question[];
+};
+
 export type Course = {
   id: string;
   title: string;
@@ -26,6 +41,7 @@ export type Course = {
   thumbnailUrl: string;
   thumbnailHint: string;
   chapters: Chapter[];
+  tests?: Test[];
   targetClass?: string;
 };
 

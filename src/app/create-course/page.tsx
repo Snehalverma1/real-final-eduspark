@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState } from "react";
@@ -17,13 +18,25 @@ import {
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { PlusCircle, Trash2, Book, Film, Loader2, ShieldAlert, Layers, Sparkles, Image as ImageIcon } from "lucide-react";
+import { PlusCircle, Trash2, Book, Film, Loader2, ShieldAlert, Layers, Sparkles, Image as ImageIcon, ClipboardList, CheckCircle2 } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useUser, useFirestore, useDoc, useMemoFirebase, errorEmitter, FirestorePermissionError } from "@/firebase";
 import { doc, collection, setDoc } from 'firebase/firestore';
 import { useToast } from "@/hooks/use-toast";
 import { useRouter } from "next/navigation";
 import { categories } from "@/lib/data";
+
+const questionSchema = z.object({
+  question: z.string().min(5, "Question text is required."),
+  options: z.array(z.string().min(1, "Option is required.")).length(4, "Exactly 4 options required."),
+  correctAnswerIndex: z.coerce.number().min(0).max(3),
+});
+
+const testSchema = z.object({
+  title: z.string().min(5, "Test title is required."),
+  durationMinutes: z.coerce.number().min(1, "Duration required."),
+  questions: z.array(questionSchema).min(1, "At least one question required."),
+});
 
 const lectureSchema = z.object({
   lectureNumber: z.coerce.number().min(1, "Lecture number is required."),
@@ -43,9 +56,10 @@ const courseSchema = z.object({
   title: z.string().min(5, "Title must be at least 5 characters."),
   description: z.string().min(20, "Description must be at least 20 characters."),
   category: z.string({ required_error: "Please select an exam category." }),
-  thumbnailUrl: z.string().optional().describe("URL for the course cover image."),
+  thumbnailUrl: z.string().optional(),
   difficultyLevel: z.enum(['Beginner', 'Intermediate', 'Advanced'], { required_error: "Please select a difficulty level." }),
   chapters: z.array(chapterSchema).min(1, "At least one chapter is required."),
+  tests: z.array(testSchema).optional(),
 });
 
 type CourseFormValues = z.infer<typeof courseSchema>;
@@ -71,7 +85,9 @@ export default function CreateCoursePage() {
       description: "",
       category: "",
       thumbnailUrl: "",
+      difficultyLevel: "Beginner",
       chapters: [{ title: "Chapter 1", lectures: [{ lectureNumber: 1, title: "", type: "video", content: "", summary: "", duration: 15 }] }],
+      tests: [],
     },
   });
 
@@ -79,234 +95,76 @@ export default function CreateCoursePage() {
     control: form.control,
     name: "chapters",
   });
+
+  const { fields: testFields, append: appendTest, remove: removeTest } = useFieldArray({
+    control: form.control,
+    name: "tests",
+  });
   
   const { isSubmitting } = form.formState;
   const isBusy = isSubmitting || isSaving;
   const isLoading = isUserLoading || isProfileLoading;
 
   function onSubmit(data: CourseFormValues) {
-    if (!user || !firestore) {
-      toast({
-        variant: "destructive",
-        title: "Authentication Error",
-        description: "You must be logged in to create a course.",
-      });
-      return;
-    }
-    
+    if (!user || !firestore) return;
     setIsSaving(true);
 
     const courseId = doc(collection(firestore, 'courses')).id;
     const courseRef = doc(firestore, `courses`, courseId);
 
     const finalCourseData = {
+      ...data,
       id: courseId,
-      title: data.title,
-      description: data.description,
-      category: data.category,
       instructorId: user.uid,
       instructorName: user.displayName || 'Instructor',
       instructorAvatarUrl: user.photoURL || `https://picsum.photos/seed/${user.uid}/40/40`,
       status: 'Published' as const,
-      difficultyLevel: data.difficultyLevel,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       thumbnailUrl: data.thumbnailUrl || `https://picsum.photos/seed/${courseId}/600/400`,
-      chapters: data.chapters.map((chapter, cIndex) => ({
-        id: `ch_${cIndex + 1}`,
-        title: chapter.title,
-        order: cIndex + 1,
-        lectures: chapter.lectures.map((lecture, lIndex) => {
-          const { duration, ...rest } = lecture;
-          return {
-            ...rest,
-            id: `lec_${cIndex + 1}_${lIndex + 1}`,
-            durationSeconds: duration * 60,
-          };
-        }),
-      })),
     };
 
     setDoc(courseRef, finalCourseData)
       .then(() => {
-        toast({
-          title: "Course Published!",
-          description: "Your new exam course is now live.",
-        });
+        toast({ title: "Course Published!" });
         router.push('/');
       })
       .catch((error: any) => {
-        const permissionError = new FirestorePermissionError({
-            path: courseRef.path,
-            operation: 'create',
-            requestResourceData: finalCourseData,
-        });
-        errorEmitter.emit('permission-error', permissionError);
+        errorEmitter.emit('permission-error', new FirestorePermissionError({ path: courseRef.path, operation: 'create', requestResourceData: finalCourseData }));
       })
-      .finally(() => {
-          setIsSaving(false);
-      });
+      .finally(() => setIsSaving(false));
   }
 
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center min-h-[calc(100vh-4rem)]">
-        <Loader2 className="h-8 w-8 animate-spin" />
-      </div>
-    );
-  }
-
-  if (userProfile?.role === 'student' || (userProfile?.role === 'teacher' && userProfile?.applicationStatus !== 'approved')) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-[calc(100vh-4rem)] text-center p-4">
-        <ShieldAlert className="h-16 w-16 text-destructive mb-4" />
-        <h1 className="text-3xl font-bold font-headline">Access Denied</h1>
-        <p className="text-muted-foreground mt-2 max-w-md">
-          Teacher approval is required to publish exam courses.
-        </p>
-      </div>
-    );
-  }
+  if (isLoading) return <div className="flex items-center justify-center min-h-screen"><Loader2 className="animate-spin" /></div>;
 
   return (
     <div className="container mx-auto max-w-4xl p-4 md:p-8">
-      <div className="flex items-center gap-4 mb-8">
-        <div className="p-3 bg-primary/10 rounded-2xl">
-          <Layers className="h-8 w-8 text-primary" />
-        </div>
-        <div>
-          <h1 className="text-3xl font-bold font-headline">Create Exam Course</h1>
-          <p className="text-muted-foreground">Fill in the details for your new government exam prep course.</p>
-        </div>
-      </div>
-
+      <h1 className="text-3xl font-bold font-headline mb-8">Publish New Course</h1>
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
-          <Card className="rounded-3xl border-primary/10 shadow-xl shadow-primary/5">
-            <CardHeader>
-              <CardTitle className="font-headline text-2xl">Course Information</CardTitle>
-            </CardHeader>
+          <Card>
+            <CardHeader><CardTitle>General Info</CardTitle></CardHeader>
             <CardContent className="space-y-4">
-              <FormField
-                control={form.control}
-                name="title"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Course Title (e.g., SSC CGL Quantitative Aptitude)</FormLabel>
-                    <FormControl>
-                      <Input placeholder="Enter title" className="rounded-xl h-12" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="description"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Brief Description</FormLabel>
-                    <FormControl>
-                      <Textarea
-                        placeholder="What will students learn in this exam prep?"
-                        className="min-h-32 rounded-xl"
-                        {...field}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <div className="grid md:grid-cols-2 gap-4">
-                <FormField
-                    control={form.control}
-                    name="category"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Exam Category</FormLabel>
-                        <Select onValueChange={field.onChange} defaultValue={field.value}>
-                          <FormControl>
-                            <SelectTrigger className="rounded-xl h-12">
-                              <SelectValue placeholder="Select Category" />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            {categories.filter(c => c !== "All").map(cat => (
-                              <SelectItem key={cat} value={cat}>{cat}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="difficultyLevel"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Difficulty Level</FormLabel>
-                        <Select onValueChange={field.onChange} defaultValue={field.value}>
-                          <FormControl>
-                            <SelectTrigger className="rounded-xl h-12">
-                              <SelectValue placeholder="Select difficulty" />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            <SelectItem value="Beginner">Beginner</SelectItem>
-                            <SelectItem value="Intermediate">Intermediate</SelectItem>
-                            <SelectItem value="Advanced">Advanced</SelectItem>
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-              </div>
-
-              <FormField
-                control={form.control}
-                name="thumbnailUrl"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel className="flex items-center gap-2">
-                      <ImageIcon className="h-4 w-4" />
-                      Thumbnail Image URL
-                    </FormLabel>
-                    <FormControl>
-                      <Input placeholder="https://example.com/image.jpg" className="rounded-xl h-12" {...field} />
-                    </FormControl>
-                    <FormDescription>
-                      Provide a URL for the course cover image. If left blank, a high-quality placeholder will be generated.
-                    </FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+              <FormField control={form.control} name="title" render={({ field }) => <FormItem><FormLabel>Title</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>} />
+              <FormField control={form.control} name="category" render={({ field }) => <FormItem><FormLabel>Category</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select Category" /></SelectTrigger></FormControl><SelectContent>{categories.filter(c => c !== "All").map(cat => <SelectItem key={cat} value={cat}>{cat}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>} />
+              <FormField control={form.control} name="difficultyLevel" render={({ field }) => <FormItem><FormLabel>Difficulty</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl><SelectContent><SelectItem value="Beginner">Beginner</SelectItem><SelectItem value="Intermediate">Intermediate</SelectItem><SelectItem value="Advanced">Advanced</SelectItem></SelectContent></Select><FormMessage /></FormItem>} />
             </CardContent>
           </Card>
 
           <div className="space-y-4">
-            <h2 className="text-2xl font-headline flex items-center gap-2">
-              <Book className="h-6 w-6 text-primary" />
-              Content Chapters
-            </h2>
-            {chapterFields.map((chapter, chapterIndex) => (
-              <ChapterForm key={chapter.id} chapterIndex={chapterIndex} form={form} removeChapter={removeChapter} />
-            ))}
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => appendChapter({ title: "", lectures: [{ lectureNumber: 1, title: "", type: "video", content: "", summary: "", duration: 15 }] })}
-              className="w-full h-14 rounded-2xl border-dashed border-2 hover:bg-primary/5 border-primary/20"
-            >
-              <PlusCircle className="mr-2 h-5 w-5" /> Add Chapter
-            </Button>
+            <h2 className="text-xl font-bold flex items-center gap-2"><Book /> Chapters</h2>
+            {chapterFields.map((chapter, index) => <ChapterForm key={chapter.id} chapterIndex={index} form={form} removeChapter={removeChapter} />)}
+            <Button type="button" variant="outline" onClick={() => appendChapter({ title: "", lectures: [{ lectureNumber: 1, title: "", type: "video", content: "", summary: "", duration: 15 }] })} className="w-full">Add Chapter</Button>
           </div>
 
-          <Button type="submit" size="lg" className="w-full h-14 rounded-2xl text-lg font-bold shadow-xl shadow-primary/20" disabled={isBusy}>
-            {isBusy && <Loader2 className="mr-2 h-5 w-5 animate-spin" />}
-            Publish Exam Course
+          <div className="space-y-4">
+            <h2 className="text-xl font-bold flex items-center gap-2"><ClipboardList /> Mock Tests</h2>
+            {testFields.map((test, index) => <TestForm key={test.id} testIndex={index} form={form} removeTest={removeTest} />)}
+            <Button type="button" variant="outline" onClick={() => appendTest({ title: "", durationMinutes: 60, questions: [{ question: "", options: ["", "", "", ""], correctAnswerIndex: 0 }] })} className="w-full">Add Mock Test</Button>
+          </div>
+
+          <Button type="submit" disabled={isBusy} className="w-full h-14 text-lg font-bold">
+            {isBusy ? <Loader2 className="animate-spin mr-2" /> : "Publish Course & Tests"}
           </Button>
         </form>
       </Form>
@@ -321,133 +179,60 @@ function ChapterForm({ chapterIndex, form, removeChapter }: any) {
   });
 
   return (
-    <Card className="bg-card border-primary/5 rounded-3xl overflow-hidden shadow-lg">
-      <CardHeader className="flex flex-row items-center justify-between bg-primary/5">
-        <CardTitle className="text-lg">Chapter {chapterIndex + 1}</CardTitle>
-        <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            onClick={() => removeChapter(chapterIndex)}
-            className="text-destructive hover:bg-destructive/10"
-          >
-            <Trash2 className="h-4 w-4" />
-          </Button>
-      </CardHeader>
-      <CardContent className="space-y-6 pt-6">
-        <FormField
-          control={form.control}
-          name={`chapters.${chapterIndex}.title`}
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Chapter Title</FormLabel>
-              <FormControl>
-                <Input placeholder="e.g., Number Systems" className="rounded-xl h-11" {...field} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        
-        <div className="space-y-4">
-            <h3 className="font-semibold text-sm uppercase tracking-wider text-muted-foreground">Lectures</h3>
-            {lectureFields.map((lecture, lectureIndex) => (
-              <div key={lecture.id} className="p-6 border rounded-2xl relative space-y-4 bg-muted/30">
-                <div className="flex justify-between items-center">
-                    <p className="font-bold text-primary">Lecture {lectureIndex + 1}</p>
-                    <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => removeLecture(lectureIndex)}
-                    >
-                        <Trash2 className="h-4 w-4 text-destructive" />
-                    </Button>
-                </div>
-                <div className="grid md:grid-cols-3 gap-4">
-                    <div className="md:col-span-2">
-                        <FormField
-                            control={form.control}
-                            name={`chapters.${chapterIndex}.lectures.${lectureIndex}.title`}
-                            render={({ field }) => (
-                                <FormItem>
-                                <FormLabel>Title</FormLabel>
-                                <FormControl>
-                                    <Input placeholder="Simplification Tips" className="rounded-xl" {...field} />
-                                </FormControl>
-                                <FormMessage />
-                                </FormItem>
-                            )}
-                        />
-                    </div>
-                    <FormField
-                    control={form.control}
-                    name={`chapters.${chapterIndex}.lectures.${lectureIndex}.type`}
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Type</FormLabel>
-                        <Select onValueChange={field.onChange} defaultValue={field.value}>
-                          <FormControl>
-                            <SelectTrigger className="rounded-xl">
-                              <SelectValue placeholder="Type" />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            <SelectItem value="text">Text Lesson</SelectItem>
-                            <SelectItem value="video">Video Lesson</SelectItem>
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
-                
-                <FormField
-                  control={form.control}
-                  name={`chapters.${chapterIndex}.lectures.${lectureIndex}.content`}
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Content (YouTube Link or Lesson Text)</FormLabel>
-                      <FormControl>
-                         <Textarea className="min-h-24 rounded-xl" placeholder="URL for videos, or full lesson text..." {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name={`chapters.${chapterIndex}.lectures.${lectureIndex}.summary`}
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel className="flex items-center gap-1.5">
-                        <Sparkles className="h-3.5 w-3.5 text-primary" />
-                        AI Study Notes & Summary
-                      </FormLabel>
-                      <FormDescription>
-                        Crucial for videos! Provide key points or a transcription so the AI assistant can answer student questions accurately.
-                      </FormDescription>
-                      <FormControl>
-                         <Textarea className="min-h-32 rounded-xl border-primary/20" placeholder="Provide a summary of the lesson content for the AI assistant..." {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
-            ))}
-            <Button
-                type="button"
-                variant="ghost"
-                onClick={() => appendLecture({ lectureNumber: lectureFields.length + 1, title: "", type: "video", content: "", summary: "", duration: 15 })}
-                className="w-full text-primary hover:bg-primary/5 rounded-xl"
-            >
-                <PlusCircle className="mr-2 h-4 w-4" /> Add Lecture to Chapter
-            </Button>
+    <Card className="p-4 bg-muted/20">
+      <div className="flex justify-between items-center mb-4">
+        <h3 className="font-bold">Chapter {chapterIndex + 1}</h3>
+        <Button size="icon" variant="ghost" onClick={() => removeChapter(chapterIndex)}><Trash2 className="h-4 w-4" /></Button>
+      </div>
+      <FormField control={form.control} name={`chapters.${chapterIndex}.title`} render={({ field }) => <FormItem className="mb-4"><FormLabel>Chapter Title</FormLabel><FormControl><Input {...field} /></FormControl></FormItem>} />
+      {lectureFields.map((lecture, lIdx) => (
+        <div key={lecture.id} className="p-4 border rounded mb-2 space-y-2">
+          <div className="flex justify-between"><span>Lecture {lIdx+1}</span><Button type="button" variant="ghost" size="sm" onClick={() => removeLecture(lIdx)}><Trash2 className="h-4 w-4"/></Button></div>
+          <FormField control={form.control} name={`chapters.${chapterIndex}.lectures.${lIdx}.title`} render={({ field }) => <FormItem><FormLabel>Title</FormLabel><FormControl><Input {...field} /></FormControl></FormItem>} />
+          <FormField control={form.control} name={`chapters.${chapterIndex}.lectures.${lIdx}.content`} render={({ field }) => <FormItem><FormLabel>Content (URL/Text)</FormLabel><FormControl><Textarea {...field} /></FormControl></FormItem>} />
         </div>
-      </CardContent>
+      ))}
+      <Button type="button" variant="ghost" size="sm" onClick={() => appendLecture({ lectureNumber: lectureFields.length + 1, title: "", type: "video", content: "", summary: "", duration: 15 })} className="mt-2">+ Add Lecture</Button>
+    </Card>
+  );
+}
+
+function TestForm({ testIndex, form, removeTest }: any) {
+  const { fields: questionFields, append: appendQuestion, remove: removeQuestion } = useFieldArray({
+    control: form.control,
+    name: `tests.${testIndex}.questions`,
+  });
+
+  return (
+    <Card className="p-4 border-primary/20">
+      <div className="flex justify-between items-center mb-4">
+        <h3 className="font-bold">Test {testIndex + 1}</h3>
+        <Button size="icon" variant="ghost" onClick={() => removeTest(testIndex)}><Trash2 className="h-4 w-4" /></Button>
+      </div>
+      <FormField control={form.control} name={`tests.${testIndex}.title`} render={({ field }) => <FormItem className="mb-2"><FormLabel>Test Title</FormLabel><FormControl><Input {...field} /></FormControl></FormItem>} />
+      <FormField control={form.control} name={`tests.${testIndex}.durationMinutes`} render={({ field }) => <FormItem className="mb-4"><FormLabel>Duration (Minutes)</FormLabel><FormControl><Input type="number" {...field} /></FormControl></FormItem>} />
+      
+      <div className="space-y-4">
+        {questionFields.map((q, qIdx) => (
+          <div key={q.id} className="p-4 bg-primary/5 rounded border">
+            <div className="flex justify-between mb-2"><span className="font-semibold">Question {qIdx + 1}</span><Button variant="ghost" size="sm" onClick={() => removeQuestion(qIdx)}><Trash2 className="h-4 w-4"/></Button></div>
+            <FormField control={form.control} name={`tests.${testIndex}.questions.${qIdx}.question`} render={({ field }) => <FormItem><FormControl><Input placeholder="Question text..." {...field} /></FormControl></FormItem>} />
+            <div className="grid grid-cols-2 gap-2 mt-2">
+              {[0, 1, 2, 3].map(optIdx => (
+                <FormField key={optIdx} control={form.control} name={`tests.${testIndex}.questions.${qIdx}.options.${optIdx}`} render={({ field }) => (
+                  <div className="flex items-center gap-2">
+                    <FormControl><Input placeholder={`Option ${optIdx + 1}`} {...field} /></FormControl>
+                    <FormField control={form.control} name={`tests.${testIndex}.questions.${qIdx}.correctAnswerIndex`} render={({ field: radioField }) => (
+                      <input type="radio" checked={radioField.value === optIdx} onChange={() => radioField.onChange(optIdx)} />
+                    )} />
+                  </div>
+                )} />
+              ))}
+            </div>
+          </div>
+        ))}
+        <Button type="button" variant="ghost" size="sm" onClick={() => appendQuestion({ question: "", options: ["", "", "", ""], correctAnswerIndex: 0 })}>+ Add Question</Button>
+      </div>
     </Card>
   );
 }

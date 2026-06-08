@@ -5,7 +5,7 @@
       "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "UserProfile",
       "type": "object",
-      "description": "Represents a user of the EduSpark platform, encompassing both students and instructors, storing their general profile information.",
+      "description": "Represents a user of the Scholars platform, encompassing both students and instructors.",
       "properties": {
         "id": { "type": "string" },
         "email": { "type": "string", "format": "email" },
@@ -30,18 +30,40 @@
         "id": { "type": "string" },
         "title": { "type": "string" },
         "description": { "type": "string" },
-        "category": { "type": "string", "description": "Exam category: SSC, Banking, etc." },
+        "category": { "type": "string" },
         "instructorId": { "type": "string" },
         "instructorName": { "type": "string" },
         "instructorAvatarUrl": { "type": "string", "format": "uri" },
         "thumbnailUrl": { "type": "string", "format": "uri" },
         "difficultyLevel": { "type": "string" },
         "chapters": { "type": "array", "items": { "type": "object" } },
+        "tests": { "type": "array", "items": { "$ref": "#/backend/entities/Test" } },
         "status": { "type": "string", "enum": ["Published", "Draft"] },
         "createdAt": { "type": "string", "format": "date-time" },
         "updatedAt": { "type": "string", "format": "date-time" }
       },
       "required": ["id", "title", "category", "instructorId", "status", "createdAt", "updatedAt"]
+    },
+    "Test": {
+      "title": "Test",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "durationMinutes": { "type": "number" },
+        "questions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": { "type": "string" },
+              "question": { "type": "string" },
+              "options": { "type": "array", "items": { "type": "string" } },
+              "correctAnswerIndex": { "type": "number" }
+            }
+          }
+        }
+      }
     },
     "Enrollment": {
       "$schema": "http://json-schema.org/draft-07/schema#",
@@ -51,7 +73,8 @@
       "properties": {
         "userId": { "type": "string" },
         "courseId": { "type": "string" },
-        "completedLectures": { "type": "array", "items": { "type": "string" }, "description": "Array of lecture IDs completed by the user." },
+        "completedLectures": { "type": "array", "items": { "type": "string" } },
+        "testResults": { "type": "object", "additionalProperties": { "type": "number" } },
         "enrolledAt": { "type": "string", "format": "date-time" },
         "updatedAt": { "type": "string", "format": "date-time" }
       },
