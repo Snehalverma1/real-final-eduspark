@@ -1,7 +1,7 @@
 
-# EduSpark - Ignite Your Learning Journey
+# Scholars - Ignite Your Learning Journey
 
-EduSpark is a modern, AI-powered educational platform designed for seamless learning and interactive teaching.
+Scholars is a modern, AI-powered educational platform designed for seamless learning and interactive teaching.
 
 ## 🚀 Features
 
@@ -58,7 +58,7 @@ Open [http://localhost:9002](http://localhost:9002) in your browser.
 ```bash
 git init
 git add .
-git commit -m "Initial commit: EduSpark prototype"
+git commit -m "Initial commit: Scholars prototype"
 git branch -M main
 git remote add origin <YOUR_GITHUB_REPO_URL>
 git push -u origin main

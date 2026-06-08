@@ -1,4 +1,3 @@
-
 "use client";
 
 import Link from "next/link";
@@ -48,7 +47,7 @@ export default function Header() {
       <div className="container flex h-16 max-w-screen-2xl items-center">
         <Link href="/" className="mr-8 flex items-center space-x-2">
           <BookOpen className="h-7 w-7 text-primary" />
-          <span className="font-black font-headline inline-block text-2xl tracking-tighter">EduSpark</span>
+          <span className="font-black font-headline inline-block text-2xl tracking-tighter">Scholars</span>
         </Link>
         <nav className="flex items-center gap-6 text-sm font-bold">
           <Link
@@ -107,7 +106,7 @@ export default function Header() {
                 <DropdownMenuContent className="w-64 mt-2 rounded-2xl shadow-2xl border-primary/5" align="end" forceMount>
                   <DropdownMenuLabel className="font-normal p-4">
                     <div className="flex flex-col space-y-2">
-                      <p className="text-base font-black leading-none">{user.displayName || 'EduSpark User'}</p>
+                      <p className="text-base font-black leading-none">{user.displayName || 'Scholars User'}</p>
                       <p className="text-xs leading-none text-muted-foreground truncate">
                         {user.email}
                       </p>

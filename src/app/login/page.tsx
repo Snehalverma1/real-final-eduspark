@@ -93,7 +93,7 @@ export default function LoginPage() {
           <div className="flex justify-center items-center mb-4">
             <BookOpen className="h-8 w-8 text-primary" />
           </div>
-          <CardTitle className="text-2xl font-headline">Login to EduSpark</CardTitle>
+          <CardTitle className="text-2xl font-headline">Login to Scholars</CardTitle>
           <CardDescription>
             Enter your email below to login to your account
           </CardDescription>

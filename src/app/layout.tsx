@@ -6,7 +6,7 @@ import { cn } from '@/lib/utils';
 import { FirebaseClientProvider } from '@/firebase/client-provider';
 
 export const metadata: Metadata = {
-  title: 'EduSpark',
+  title: 'Scholars',
   description: 'Ignite Your Learning Journey',
 };
 

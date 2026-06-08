@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState } from 'react';
@@ -245,7 +244,7 @@ export default function Home() {
             <div>
               <h2 className="text-4xl md:text-5xl font-bold font-headline mb-6">Ready to join India's top civil servants?</h2>
               <p className="text-background/60 text-lg mb-10 leading-relaxed">
-                Our mobile-first learning experience is designed to fit into your busy schedule. Download the EduSpark guide or join a demo live class today.
+                Our mobile-first learning experience is designed to fit into your busy schedule. Download the Scholars guide or join a demo live class today.
               </p>
               <div className="flex flex-wrap gap-4">
                 <Button size="lg" className="rounded-xl px-10 h-14 text-lg font-bold bg-primary hover:bg-primary/90">Get Started Free</Button>

@@ -158,7 +158,7 @@ export default function SignupPage() {
             </div>
           <CardTitle className="text-2xl font-headline">Create an Account</CardTitle>
           <CardDescription>
-            Join EduSpark to start your learning journey today.
+            Join Scholars to start your learning journey today.
           </CardDescription>
         </CardHeader>
         <CardContent>
