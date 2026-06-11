@@ -7,7 +7,7 @@ export function cn(...inputs: ClassValue[]) {
 
 /**
  * Extracts a professional embed URL from various video platform links.
- * Optimized for minimal UI and forced unmuted autoplay.
+ * Optimized for minimal UI while keeping core player features.
  */
 export function getEmbedUrl(url: string, options: { autoplay?: boolean } = {}) {
   if (!url) return "";
@@ -22,17 +22,19 @@ export function getEmbedUrl(url: string, options: { autoplay?: boolean } = {}) {
     if (options.autoplay) {
       params.append("autoplay", "1");
       // Set mute to 0 to try and play with sound
-      // NOTE: Browsers may block unmuted autoplay unless the user has interacted with the page.
+      // NOTE: Browsers usually block unmuted autoplay until a user interaction occurs.
       params.append("mute", "0"); 
     }
     
-    // Hide controls and reduce branding to the absolute minimum
-    params.append("controls", "0");      // Hides sound button, seek bar, and play/pause
-    params.append("modestbranding", "1"); // Minimizes YouTube logo
-    params.append("rel", "0");           // Prevents "More Videos" from other channels
-    params.append("showinfo", "0");      // Hides video title (deprecated but helpful)
+    // rel=0 ensures "More Videos" only come from the same channel, reducing clutter.
+    params.append("rel", "0");
+    // modestbranding=1 hides the YouTube logo from the control bar.
+    params.append("modestbranding", "1");
+    // Explicitly allow fullscreen and keep controls for the timeline.
+    params.append("fs", "1");
+    params.append("controls", "1");
     params.append("iv_load_policy", "3"); // Hides video annotations
-    params.append("playsinline", "1");    // Prevent full-screen on mobile
+    params.append("playsinline", "1");    // Prevent full-screen hijacking on mobile
     
     const queryString = params.toString();
     return `https://www.youtube.com/embed/${videoId}?${queryString}`;
@@ -52,8 +54,6 @@ export function getEmbedUrl(url: string, options: { autoplay?: boolean } = {}) {
       params.append("muted", "0");
     }
     
-    // Hide all Vimeo UI components
-    params.append("controls", "0");
     params.append("badge", "0");
     params.append("autopause", "0");
     params.append("byline", "0");
