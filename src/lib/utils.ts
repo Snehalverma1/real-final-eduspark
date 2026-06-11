@@ -1,3 +1,4 @@
+
 import { clsx, type ClassValue } from "clsx"
 import { twMerge } from "tailwind-merge"
 
@@ -21,20 +22,17 @@ export function getEmbedUrl(url: string, options: { autoplay?: boolean } = {}) {
     
     if (options.autoplay) {
       params.append("autoplay", "1");
-      // Set mute to 0 to try and play with sound
-      // NOTE: Browsers usually block unmuted autoplay until a user interaction occurs.
+      // Mute=0 is requested, but browsers block unmuted autoplay.
+      // We set it to 0 as requested, though it may require a user click to start.
       params.append("mute", "0"); 
     }
     
-    // rel=0 ensures "More Videos" only come from the same channel, reducing clutter.
     params.append("rel", "0");
-    // modestbranding=1 hides the YouTube logo from the control bar.
     params.append("modestbranding", "1");
-    // Explicitly allow fullscreen and keep controls for the timeline.
-    params.append("fs", "1");
-    params.append("controls", "1");
-    params.append("iv_load_policy", "3"); // Hides video annotations
-    params.append("playsinline", "1");    // Prevent full-screen hijacking on mobile
+    params.append("fs", "1"); // Keep fullscreen
+    params.append("controls", "1"); // Keep timeline/controls as requested
+    params.append("iv_load_policy", "3"); 
+    params.append("playsinline", "1");
     
     const queryString = params.toString();
     return `https://www.youtube.com/embed/${videoId}?${queryString}`;
