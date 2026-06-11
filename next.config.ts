@@ -8,6 +8,14 @@ const nextConfig: NextConfig = {
   eslint: {
     ignoreDuringBuilds: true,
   },
+  experimental: {
+    serverActions: {
+      bodySizeLimit: '2mb',
+      allowedOrigins: ['*'],
+    },
+  },
+  // Increase timeout for AI responses which can take longer
+  serverExternalPackages: ['genkit'],
   images: {
     remotePatterns: [
       {

@@ -1,3 +1,4 @@
+
 'use server';
 /**
  * @fileOverview A world-class educational consultant and versatile mentor powered by Gemini.
@@ -32,6 +33,11 @@ export type AICourseQAToolOutput = z.infer<typeof AICourseQAToolOutputSchema>;
 export async function aiCourseQATool(
   input: AICourseQAToolInput
 ): Promise<AICourseQAToolOutput> {
+  // Check for API key presence to provide immediate feedback
+  if (!process.env.GOOGLE_GENAI_API_KEY && !process.env.GOOGLE_API_KEY) {
+    throw new Error('AI Configuration Error: Missing GOOGLE_GENAI_API_KEY. Please add it to your hosting Environment Variables.');
+  }
+  
   return aiCourseQAToolFlow(input);
 }
 
@@ -47,7 +53,7 @@ const prompt = ai.definePrompt({
       { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_ONLY_HIGH' },
       { category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'BLOCK_ONLY_HIGH' },
     ],
-    temperature: 0.8, // Slightly higher for more creative and broad thinking
+    temperature: 0.8,
   },
   system: `You are a world-class mentor and expert teacher on the Scholars platform.
 Your primary mission is to help students succeed in exams and life.
