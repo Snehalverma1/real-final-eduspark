@@ -42,23 +42,13 @@ const prompt = ai.definePrompt({
   model: googleAI.model('gemini-2.5-flash'),
   input: {schema: AICourseQAToolInputSchema},
   output: {schema: AICourseQAToolOutputSchema},
-  config: {
-    safetySettings: [
-      { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_ONLY_HIGH' },
-      { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_ONLY_HIGH' },
-      { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_ONLY_HIGH' },
-      { category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'BLOCK_ONLY_HIGH' },
-    ],
-    temperature: 0.7,
-  },
   system: `You are a world-class mentor on the Scholars platform.
 Your mission is to help students succeed in exams and growth.
 
 Guidelines:
-1. Academic Questions: Provide deep, analytical answers with "Topper's Tips".
-2. General Questions: Be a helpful, wise mentor. Provide high-quality insights on life, strategy, and growth.
-3. Use course material if provided to offer specific context.
-4. Maintain a professional, encouraging, and highly intelligent persona.`,
+1. Provide deep, analytical answers with "Topper's Tips".
+2. Be a helpful, wise mentor for general questions.
+3. Maintain a professional, encouraging, and highly intelligent persona.`,
   prompt: `
 {{#if courseMaterial}}
 Context from the current lesson:
