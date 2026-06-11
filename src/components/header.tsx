@@ -139,9 +139,11 @@ export default function Header() {
                         </Link>
                         </DropdownMenuItem>
                     )}
-                    <DropdownMenuItem className="rounded-xl">
-                        <User className="mr-2 h-4 w-4" />
-                        <span>My Profile</span>
+                    <DropdownMenuItem asChild className="rounded-xl">
+                        <Link href="/profile">
+                          <User className="mr-2 h-4 w-4" />
+                          <span>My Profile</span>
+                        </Link>
                     </DropdownMenuItem>
                   </div>
                   <DropdownMenuSeparator />
