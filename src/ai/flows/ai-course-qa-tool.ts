@@ -15,46 +15,26 @@ import {googleAI} from '@genkit-ai/google-genai';
 const AICourseQAToolInputSchema = z.object({
   question: z
     .string()
-    .describe("The student's question, which could be about course material, exam strategy, or general knowledge."),
+    .describe("The student's question about course material or general growth."),
   courseMaterial: z
     .string()
     .optional()
-    .describe("The relevant course material content (text) to provide context, if available."),
+    .describe("The relevant course material content to provide context."),
 });
 export type AICourseQAToolInput = z.infer<typeof AICourseQAToolInputSchema>;
 
 const AICourseQAToolOutputSchema = z.object({
   answer: z
     .string()
-    .describe("The AI's comprehensive, analytical, and broad-thinking answer."),
+    .describe("The AI's comprehensive and analytical answer."),
 });
 export type AICourseQAToolOutput = z.infer<typeof AICourseQAToolOutputSchema>;
 
 /**
  * Server Action to handle AI Q&A.
- * Robustly checks for API keys and handles flow execution.
  */
-export async function aiCourseQATool(
-  input: AICourseQAToolInput
-): Promise<AICourseQAToolOutput> {
-  const apiKey = process.env.GOOGLE_GENAI_API_KEY || process.env.GOOGLE_API_KEY;
-  
-  if (!apiKey) {
-    console.error('[AI-CONFIG-ERROR] No Google API Key detected.');
-    // We return a structured error response instead of throwing to prevent "Unexpected end of JSON input"
-    return {
-      answer: "I'm sorry, but my connection to the brain-center is missing. (Error: GOOGLE_GENAI_API_KEY is not set in the environment variables). Please contact the administrator.",
-    };
-  }
-
-  try {
-    return await aiCourseQAToolFlow(input);
-  } catch (error: any) {
-    console.error('[AI-FLOW-EXECUTION-ERROR]', error);
-    return {
-      answer: "I encountered an error while processing your request. This could be due to safety filters or a temporary connection issue. Please try rephrasing your question.",
-    };
-  }
+export async function aiCourseQATool(input: AICourseQAToolInput): Promise<AICourseQAToolOutput> {
+  return aiCourseQAToolFlow(input);
 }
 
 const prompt = ai.definePrompt({
@@ -71,15 +51,14 @@ const prompt = ai.definePrompt({
     ],
     temperature: 0.7,
   },
-  system: `You are a world-class mentor and expert teacher on the Scholars platform.
+  system: `You are a world-class mentor on the Scholars platform.
 Your mission is to help students succeed in exams and growth.
 
 Guidelines:
 1. Academic Questions: Provide deep, analytical answers with "Topper's Tips".
 2. General Questions: Be a helpful, wise mentor. Provide high-quality insights on life, strategy, and growth.
-3. Use course material if provided, but broaden the conversation to encourage critical thinking.
-4. Maintain a professional, encouraging, and highly intelligent persona.
-5. If the user asks something non-academic, don't refuse it; answer it as a wise mentor.`,
+3. Use course material if provided to offer specific context.
+4. Maintain a professional, encouraging, and highly intelligent persona.`,
   prompt: `
 {{#if courseMaterial}}
 Context from the current lesson:
@@ -104,9 +83,7 @@ const aiCourseQAToolFlow = ai.defineFlow(
   },
   async (input) => {
     const {output} = await prompt(input);
-    if (!output) {
-      throw new Error('AI failed to generate output');
-    }
+    if (!output) throw new Error('AI failed to generate output');
     return output;
   }
 );
