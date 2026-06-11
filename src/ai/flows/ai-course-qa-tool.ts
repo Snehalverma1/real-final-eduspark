@@ -30,18 +30,31 @@ const AICourseQAToolOutputSchema = z.object({
 });
 export type AICourseQAToolOutput = z.infer<typeof AICourseQAToolOutputSchema>;
 
+/**
+ * Server Action to handle AI Q&A.
+ * Robustly checks for API keys and handles flow execution.
+ */
 export async function aiCourseQATool(
   input: AICourseQAToolInput
 ): Promise<AICourseQAToolOutput> {
-  // Runtime Check: Verify the API key is available to the server action
   const apiKey = process.env.GOOGLE_GENAI_API_KEY || process.env.GOOGLE_API_KEY;
   
   if (!apiKey) {
-    console.error('[AI-CONFIG-ERROR] No Google API Key found in environment variables.');
-    throw new Error('AI Configuration Error: The server could not find your Google API Key. Please ensure GOOGLE_GENAI_API_KEY is set in your hosting provider settings.');
+    console.error('[AI-CONFIG-ERROR] No Google API Key detected.');
+    // We return a structured error response instead of throwing to prevent "Unexpected end of JSON input"
+    return {
+      answer: "I'm sorry, but my connection to the brain-center is missing. (Error: GOOGLE_GENAI_API_KEY is not set in the environment variables). Please contact the administrator.",
+    };
   }
 
-  return aiCourseQAToolFlow(input);
+  try {
+    return await aiCourseQAToolFlow(input);
+  } catch (error: any) {
+    console.error('[AI-FLOW-EXECUTION-ERROR]', error);
+    return {
+      answer: "I encountered an error while processing your request. This could be due to safety filters or a temporary connection issue. Please try rephrasing your question.",
+    };
+  }
 }
 
 const prompt = ai.definePrompt({
@@ -63,9 +76,10 @@ Your mission is to help students succeed in exams and growth.
 
 Guidelines:
 1. Academic Questions: Provide deep, analytical answers with "Topper's Tips".
-2. General Questions: Be a helpful, wise mentor. Do not refuse to answer; provide high-quality insights.
+2. General Questions: Be a helpful, wise mentor. Provide high-quality insights on life, strategy, and growth.
 3. Use course material if provided, but broaden the conversation to encourage critical thinking.
-4. Maintain a professional, encouraging, and highly intelligent persona.`,
+4. Maintain a professional, encouraging, and highly intelligent persona.
+5. If the user asks something non-academic, don't refuse it; answer it as a wise mentor.`,
   prompt: `
 {{#if courseMaterial}}
 Context from the current lesson:
@@ -89,15 +103,10 @@ const aiCourseQAToolFlow = ai.defineFlow(
     outputSchema: AICourseQAToolOutputSchema,
   },
   async (input) => {
-    try {
-      const {output} = await prompt(input);
-      if (!output) {
-        throw new Error('AI failed to generate a structured response.');
-      }
-      return output;
-    } catch (error: any) {
-      console.error('[AI-FLOW-ERROR]', error.message || error);
-      throw error;
+    const {output} = await prompt(input);
+    if (!output) {
+      throw new Error('AI failed to generate output');
     }
+    return output;
   }
 );
