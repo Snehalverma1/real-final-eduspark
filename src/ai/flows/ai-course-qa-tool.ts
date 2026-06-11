@@ -1,8 +1,8 @@
 'use server';
 /**
- * @fileOverview A world-class educational consultant powered by Gemini.
+ * @fileOverview A world-class educational consultant and versatile mentor powered by Gemini.
  *
- * - aiCourseQATool - A function that provides deep educational insights.
+ * - aiCourseQATool - A function that provides deep educational and general insights.
  * - AICourseQAToolInput - The input type for the aiCourseQATool function.
  * - AICourseQAToolOutput - The return type for the aiCourseQATool function.
  */
@@ -14,7 +14,7 @@ import {googleAI} from '@genkit-ai/google-genai';
 const AICourseQAToolInputSchema = z.object({
   question: z
     .string()
-    .describe("The student's question about the course material or general exam topic."),
+    .describe("The student's question, which could be about course material, exam strategy, or general knowledge."),
   courseMaterial: z
     .string()
     .optional()
@@ -25,7 +25,7 @@ export type AICourseQAToolInput = z.infer<typeof AICourseQAToolInputSchema>;
 const AICourseQAToolOutputSchema = z.object({
   answer: z
     .string()
-    .describe("The AI's comprehensive and analytical answer."),
+    .describe("The AI's comprehensive, analytical, and broad-thinking answer."),
 });
 export type AICourseQAToolOutput = z.infer<typeof AICourseQAToolOutputSchema>;
 
@@ -41,33 +41,37 @@ const prompt = ai.definePrompt({
   input: {schema: AICourseQAToolInputSchema},
   output: {schema: AICourseQAToolOutputSchema},
   config: {
-    // Relaxed safety settings to allow for "broad thinking" on potentially sensitive academic topics
     safetySettings: [
       { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_ONLY_HIGH' },
       { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_ONLY_HIGH' },
       { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_ONLY_HIGH' },
       { category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'BLOCK_ONLY_HIGH' },
     ],
-    temperature: 0.7, // Balance between accuracy and creative broad thinking
+    temperature: 0.8, // Slightly higher for more creative and broad thinking
   },
-  system: `You are a world-class educational consultant and expert teacher.
-Your goal is to help students achieve top ranks in competitive exams.
-You have broad, deep knowledge of pedagogy, exam trends, and all academic subjects.
-While you use the provided lesson material as context, you are encouraged to expand on concepts, provide shortcuts, and share "Topper's Tips" from your internal knowledge base.`,
+  system: `You are a world-class mentor and expert teacher on the Scholars platform.
+Your primary mission is to help students succeed in exams and life.
+You have vast knowledge across all academic subjects, history, science, technology, and philosophy.
+
+Guidelines:
+1. If a question is academic, provide deep, analytical answers with "Topper's Tips".
+2. If a question is general or non-academic, be a helpful, wise mentor. Do not refuse to answer general questions; instead, provide high-quality insights that help the user grow.
+3. Use the provided course material if it's relevant, but don't be limited by it. Broaden the conversation whenever possible to encourage critical thinking.
+4. Maintain a professional, encouraging, and highly intelligent persona.`,
   prompt: `
 {{#if courseMaterial}}
-Context from current lesson:
+Context from the current lesson (use this if relevant):
 ---
 {{{courseMaterial}}}
 ---
 {{/if}}
 
-Student's Question:
+User's Query:
 ---
 {{{question}}}
 ---
 
-Please provide a deep, analytical answer that encourages broad thinking and provides actionable exam strategies.`,
+Please provide a comprehensive response that demonstrates broad thinking and deep insight.`,
 });
 
 const aiCourseQAToolFlow = ai.defineFlow(
