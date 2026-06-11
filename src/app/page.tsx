@@ -1,7 +1,7 @@
-
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { CourseCard } from "@/components/course-card";
 import { Input } from "@/components/ui/input";
 import { Search, Loader2, Award, BookOpen, Users, TrendingUp, Sparkles, Bell, Calendar } from "lucide-react";
@@ -15,9 +15,19 @@ import Link from 'next/link';
 
 export default function Home() {
   const firestore = useFirestore();
+  const searchParams = useSearchParams();
   const { isUserLoading: isUserAuthLoading } = useUser();
   const [selectedCategory, setSelectedCategory] = useState("All");
   const [searchQuery, setSearchQuery] = useState("");
+
+  // Sync search from Voice Commander URL params
+  useEffect(() => {
+    const voiceSearch = searchParams.get('search');
+    if (voiceSearch) {
+      setSearchQuery(voiceSearch);
+      setSelectedCategory("All");
+    }
+  }, [searchParams]);
 
   // Real-time alerts from Firestore
   const alertsQuery = useMemoFirebase(() => {
@@ -84,7 +94,6 @@ export default function Home() {
             ) : (
               <div className="opacity-50 italic">No active alerts at the moment. Stay tuned for exam updates.</div>
             )}
-            {/* Duplicate for infinite feel if needed, but the simple list is usually fine for these apps */}
           </div>
         </div>
       </div>

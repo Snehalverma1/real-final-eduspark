@@ -4,6 +4,7 @@ import { Toaster } from "@/components/ui/toaster";
 import Header from '@/components/header';
 import { cn } from '@/lib/utils';
 import { FirebaseClientProvider } from '@/firebase/client-provider';
+import VoiceCommander from '@/components/voice-commander';
 
 export const metadata: Metadata = {
   title: 'Scholars',
@@ -26,6 +27,7 @@ export default function RootLayout({
         <FirebaseClientProvider>
           <Header />
           <main>{children}</main>
+          <VoiceCommander />
           <Toaster />
         </FirebaseClientProvider>
       </body>
