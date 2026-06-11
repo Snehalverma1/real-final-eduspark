@@ -17,11 +17,21 @@ export function getEmbedUrl(url: string, options: { autoplay?: boolean } = {}) {
   const youtubeMatch = url.match(youtubeRegex);
   if (youtubeMatch && youtubeMatch[1]) {
     const videoId = youtubeMatch[1];
-    let embedUrl = `https://www.youtube.com/embed/${videoId}`;
+    const params = new URLSearchParams();
+    
+    // Core parameters to minimize branding and force interaction-free playback
     if (options.autoplay) {
-      embedUrl += "?autoplay=1&mute=1"; // Mute is often required for autoplay to work in modern browsers
+      params.append("autoplay", "1");
+      params.append("mute", "1"); // Browsers require mute for autoplay to trigger reliably
     }
-    return embedUrl;
+    
+    params.append("modestbranding", "1"); // Reduces YouTube logo appearance
+    params.append("rel", "0");           // Shows related videos only from the same channel
+    params.append("playsinline", "1");    // Better behavior on mobile devices
+    params.append("enablejsapi", "1");    // Allows programmatic control if needed
+    
+    const queryString = params.toString();
+    return `https://www.youtube.com/embed/${videoId}${queryString ? `?${queryString}` : ""}`;
   }
 
   // Vimeo Check

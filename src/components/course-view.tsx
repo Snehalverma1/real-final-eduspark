@@ -155,8 +155,8 @@ export default function CourseView({ course }: { course: Course }) {
                             <div className="aspect-video bg-black rounded-3xl overflow-hidden border shadow-2xl">
                                 <iframe 
                                     className="w-full h-full" 
-                                    src={getEmbedUrl(activeLecture.content)} 
-                                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                                    src={getEmbedUrl(activeLecture.content, { autoplay: true })} 
+                                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
                                     allowFullScreen
                                 ></iframe>
                             </div>

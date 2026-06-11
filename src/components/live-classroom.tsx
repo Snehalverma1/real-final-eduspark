@@ -40,8 +40,7 @@ export default function LiveClassroom({ courseId, isInstructor }: LiveClassroomP
     }
 
     const embedUrl = getEmbedUrl(streamUrl, { autoplay: true });
-    // Check if it's a valid video link (getEmbedUrl returns original if no match, 
-    // but our youtube match is specific)
+    // Check if it's a valid video link
     if (!embedUrl || (!embedUrl.includes('youtube.com/embed') && !embedUrl.includes('player.vimeo.com/video'))) {
       toast({ variant: "destructive", title: "Invalid URL", description: "Please provide a valid YouTube or Vimeo link." });
       return;
