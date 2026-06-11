@@ -33,9 +33,12 @@ export type AICourseQAToolOutput = z.infer<typeof AICourseQAToolOutputSchema>;
 export async function aiCourseQATool(
   input: AICourseQAToolInput
 ): Promise<AICourseQAToolOutput> {
-  // Check for API key presence to provide immediate feedback
-  if (!process.env.GOOGLE_GENAI_API_KEY && !process.env.GOOGLE_API_KEY) {
-    throw new Error('AI Configuration Error: Missing GOOGLE_GENAI_API_KEY. Please add it to your hosting Environment Variables.');
+  // Server-side health check: log if key is detected (redacted for safety)
+  const keyExists = !!(process.env.GOOGLE_GENAI_API_KEY || process.env.GOOGLE_API_KEY);
+  console.log(`[AI-HUB] API Key detected on server: ${keyExists}`);
+
+  if (!keyExists) {
+    throw new Error('AI Configuration Error: Missing GOOGLE_GENAI_API_KEY. Please ensure it is set in your Hosting Environment Variables and redeploy.');
   }
   
   return aiCourseQAToolFlow(input);
@@ -94,7 +97,8 @@ const aiCourseQAToolFlow = ai.defineFlow(
       }
       return output;
     } catch (error: any) {
-      console.error('Genkit Flow Error:', error);
+      // Log the specific error for server-side debugging
+      console.error('[AI-FLOW-ERROR]', error.message || error);
       throw error;
     }
   }
