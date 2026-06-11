@@ -79,6 +79,19 @@
         "updatedAt": { "type": "string", "format": "date-time" }
       },
       "required": ["userId", "courseId", "completedLectures", "enrolledAt", "updatedAt"]
+    },
+    "LiveAlert": {
+      "title": "LiveAlert",
+      "type": "object",
+      "description": "A dynamic notification shown in the global ticker.",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "tag": { "type": "string" },
+        "color": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "title", "tag", "createdAt"]
     }
   },
   "auth": {
@@ -97,6 +110,10 @@
       {
         "path": "/userProfiles/{userId}/enrollments/{courseId}",
         "definition": { "entityName": "Enrollment", "schema": { "$ref": "#/backend/entities/Enrollment" } }
+      },
+      {
+        "path": "/liveAlerts/{alertId}",
+        "definition": { "entityName": "LiveAlert", "schema": { "$ref": "#/backend/entities/LiveAlert" } }
       }
     ]
   }

@@ -1,11 +1,12 @@
+
 'use client';
 
 import { useState } from 'react';
 import { CourseCard } from "@/components/course-card";
 import { Input } from "@/components/ui/input";
-import { Search, Loader2, Award, BookOpen, Users, TrendingUp, Sparkles, Bell, Calendar, ChevronRight } from "lucide-react";
-import { useFirestore, useCollection, useUser, useDoc, useMemoFirebase } from "@/firebase";
-import { collection, query, where, doc } from "firebase/firestore";
+import { Search, Loader2, Award, BookOpen, Users, TrendingUp, Sparkles, Bell, Calendar } from "lucide-react";
+import { useFirestore, useCollection, useUser, useMemoFirebase } from "@/firebase";
+import { collection, query, where, orderBy } from "firebase/firestore";
 import type { Course as CourseType } from "@/lib/data";
 import { categories } from "@/lib/data";
 import { cn } from "@/lib/utils";
@@ -14,9 +15,17 @@ import Link from 'next/link';
 
 export default function Home() {
   const firestore = useFirestore();
-  const { user, isUserLoading: isUserAuthLoading } = useUser();
+  const { isUserLoading: isUserAuthLoading } = useUser();
   const [selectedCategory, setSelectedCategory] = useState("All");
   const [searchQuery, setSearchQuery] = useState("");
+
+  // Real-time alerts from Firestore
+  const alertsQuery = useMemoFirebase(() => {
+    if (!firestore) return null;
+    return query(collection(firestore, 'liveAlerts'), orderBy('createdAt', 'desc'));
+  }, [firestore]);
+
+  const { data: alerts } = useCollection(alertsQuery);
 
   const coursesQuery = useMemoFirebase(() => {
     if (!firestore) return null;
@@ -54,13 +63,6 @@ export default function Home() {
       course.description.toLowerCase().includes(searchQuery.toLowerCase())
     );
 
-  const examAlerts = [
-    { title: "SSC CGL 2024 Tier-1 Result Out", tag: "New", color: "text-red-500" },
-    { title: "IBPS PO Phase-II Admit Card Released", tag: "Update", color: "text-blue-500" },
-    { title: "RRB NTPC Exam Date Notification", tag: "Alert", color: "text-orange-500" },
-    { title: "UPSC Prelims 2025 Calendar Released", tag: "Calendar", color: "text-green-500" },
-  ];
-
   return (
     <div className="min-h-screen bg-background hero-gradient">
       {/* Dynamic Exam Alert Ticker */}
@@ -71,13 +73,18 @@ export default function Home() {
             Live Alerts
           </div>
           <div className="flex gap-12 animate-infinite-scroll overflow-x-hidden whitespace-nowrap text-xs font-medium opacity-80 py-1">
-            {examAlerts.map((alert, i) => (
-              <div key={i} className="flex items-center gap-2">
-                <span className={cn("font-bold", alert.color)}>[{alert.tag}]</span>
-                <span>{alert.title}</span>
-                <span className="opacity-20">|</span>
-              </div>
-            ))}
+            {alerts && alerts.length > 0 ? (
+              alerts.map((alert, i) => (
+                <div key={alert.id} className="flex items-center gap-2">
+                  <span className={cn("font-bold text-primary")}>[{alert.tag}]</span>
+                  <span>{alert.title}</span>
+                  <span className="opacity-20">|</span>
+                </div>
+              ))
+            ) : (
+              <div className="opacity-50 italic">No active alerts at the moment. Stay tuned for exam updates.</div>
+            )}
+            {/* Duplicate for infinite feel if needed, but the simple list is usually fine for these apps */}
           </div>
         </div>
       </div>

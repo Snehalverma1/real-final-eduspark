@@ -1,9 +1,11 @@
+
 'use client';
 
 import { useUser, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
 import { doc } from 'firebase/firestore';
-import { Loader2, ShieldAlert } from 'lucide-react';
+import { Loader2, ShieldAlert, Tabs, TabsContent, TabsList, TabsTrigger, Users, Bell } from 'lucide-react';
 import TeacherApplications from '@/components/admin/teacher-applications';
+import AlertManagement from '@/components/admin/alert-management';
 
 export default function AdminPage() {
   const { user, isUserLoading } = useUser();
@@ -21,7 +23,7 @@ export default function AdminPage() {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-[calc(100vh-4rem)]">
-        <Loader2 className="h-8 w-8 animate-spin" />
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
       </div>
     );
   }
@@ -39,9 +41,16 @@ export default function AdminPage() {
   }
 
   return (
-    <div className="container mx-auto p-4 md:p-8">
-      <h1 className="text-3xl md:text-4xl font-bold font-headline mb-8">Admin Dashboard</h1>
-      <TeacherApplications />
+    <div className="container mx-auto p-4 md:p-8 max-w-6xl">
+      <div className="mb-8">
+        <h1 className="text-3xl md:text-4xl font-bold font-headline">Admin Control Center</h1>
+        <p className="text-muted-foreground mt-1">Global platform oversight and moderation.</p>
+      </div>
+
+      <div className="grid grid-cols-1 gap-8">
+        <AlertManagement />
+        <TeacherApplications />
+      </div>
     </div>
   );
 }
