@@ -113,7 +113,6 @@ export default function CreateCoursePage() {
     const courseId = doc(collection(firestore, 'courses')).id;
     const courseRef = doc(firestore, `courses`, courseId);
 
-    // Ensure all sub-items have unique IDs for proper retrieval and rendering
     const finalCourseData = {
       ...data,
       id: courseId,

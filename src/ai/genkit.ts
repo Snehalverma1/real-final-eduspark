@@ -3,17 +3,15 @@ import { genkit } from 'genkit';
 import { googleAI } from '@genkit-ai/google-genai';
 
 /**
- * Genkit initialization with explicit API key handling.
- * It checks both GOOGLE_GENAI_API_KEY and GOOGLE_API_KEY to ensure
- * compatibility with different environment setups.
+ * Genkit initialization. 
+ * Note: We don't read the API key here at the module level because 
+ * some serverless environments might not have process.env populated yet.
+ * We pass the key explicitly in the flow if needed, or rely on the plugin 
+ * picking it up from the environment at runtime.
  */
-const apiKey = process.env.GOOGLE_GENAI_API_KEY || process.env.GOOGLE_API_KEY;
-
 export const ai = genkit({
   plugins: [
-    // Explicitly pass the API key to the plugin to ensure it's picked up
-    // across different serverless/hosting environments.
-    googleAI({ apiKey }),
+    googleAI(),
   ],
   model: googleAI.model('gemini-2.5-flash'),
 });

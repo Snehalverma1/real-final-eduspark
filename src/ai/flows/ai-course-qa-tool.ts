@@ -33,14 +33,14 @@ export type AICourseQAToolOutput = z.infer<typeof AICourseQAToolOutputSchema>;
 export async function aiCourseQATool(
   input: AICourseQAToolInput
 ): Promise<AICourseQAToolOutput> {
-  // Server-side health check: log if key is detected (redacted for safety)
-  const keyExists = !!(process.env.GOOGLE_GENAI_API_KEY || process.env.GOOGLE_API_KEY);
-  console.log(`[AI-HUB] API Key detected on server: ${keyExists}`);
-
-  if (!keyExists) {
-    throw new Error('AI Configuration Error: Missing GOOGLE_GENAI_API_KEY. Please ensure it is set in your Hosting Environment Variables and redeploy.');
-  }
+  // Runtime Check: Verify the API key is available to the server action
+  const apiKey = process.env.GOOGLE_GENAI_API_KEY || process.env.GOOGLE_API_KEY;
   
+  if (!apiKey) {
+    console.error('[AI-CONFIG-ERROR] No Google API Key found in environment variables.');
+    throw new Error('AI Configuration Error: The server could not find your Google API Key. Please ensure GOOGLE_GENAI_API_KEY is set in your hosting provider settings.');
+  }
+
   return aiCourseQAToolFlow(input);
 }
 
@@ -56,20 +56,19 @@ const prompt = ai.definePrompt({
       { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_ONLY_HIGH' },
       { category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'BLOCK_ONLY_HIGH' },
     ],
-    temperature: 0.8,
+    temperature: 0.7,
   },
   system: `You are a world-class mentor and expert teacher on the Scholars platform.
-Your primary mission is to help students succeed in exams and life.
-You have vast knowledge across all academic subjects, history, science, technology, and philosophy.
+Your mission is to help students succeed in exams and growth.
 
 Guidelines:
-1. If a question is academic, provide deep, analytical answers with "Topper's Tips".
-2. If a question is general or non-academic, be a helpful, wise mentor. Do not refuse to answer general questions; instead, provide high-quality insights that help the user grow.
-3. Use the provided course material if it's relevant, but don't be limited by it. Broaden the conversation whenever possible to encourage critical thinking.
+1. Academic Questions: Provide deep, analytical answers with "Topper's Tips".
+2. General Questions: Be a helpful, wise mentor. Do not refuse to answer; provide high-quality insights.
+3. Use course material if provided, but broaden the conversation to encourage critical thinking.
 4. Maintain a professional, encouraging, and highly intelligent persona.`,
   prompt: `
 {{#if courseMaterial}}
-Context from the current lesson (use this if relevant):
+Context from the current lesson:
 ---
 {{{courseMaterial}}}
 ---
@@ -97,7 +96,6 @@ const aiCourseQAToolFlow = ai.defineFlow(
       }
       return output;
     } catch (error: any) {
-      // Log the specific error for server-side debugging
       console.error('[AI-FLOW-ERROR]', error.message || error);
       throw error;
     }
