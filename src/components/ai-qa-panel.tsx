@@ -66,10 +66,16 @@ export default function AiQaPanel({
         const input: AICourseQAToolInput = { question, courseMaterial };
         const result = await aiCourseQATool(input);
         return { answer: result.answer, error: null };
-      } catch (e) {
+      } catch (e: any) {
+        console.error("AI Assistant Error:", e);
+        // Provide more helpful error feedback
+        const errorMessage = e.message?.includes('API_KEY') 
+          ? "Configuration Error: Google API Key is missing. Please check your .env file."
+          : "The AI consultant is currently busy or the request was blocked. Please try a different question.";
+        
         return {
           answer: null,
-          error: "The AI consultant is currently busy. Please try again in a moment.",
+          error: errorMessage,
         };
       }
     },
@@ -84,10 +90,10 @@ export default function AiQaPanel({
             <div className="p-2 bg-primary rounded-lg">
                 <BrainCircuit className="text-white w-5 h-5" />
             </div>
-            Expert AI Consultant
+            Scholars AI Expert
           </SheetTitle>
           <SheetDescription className="text-foreground/70">
-            Ask complex questions, request shortcuts, or get deep concept explanations from our advanced educational AI.
+            Broad educational thinking: Ask about concepts, strategies, or shortcuts.
           </SheetDescription>
         </SheetHeader>
         <div className="flex-1 overflow-hidden px-6 pt-6">
@@ -107,7 +113,7 @@ export default function AiQaPanel({
                                         {formState.answer}
                                     </div>
                                     <div className="pt-4 border-t flex items-center gap-2 text-[10px] text-muted-foreground font-bold uppercase tracking-tighter">
-                                        <Sparkles className="h-3 w-3" /> Powered by Gemini Advanced Thinking
+                                        <Sparkles className="h-3 w-3" /> Powered by Gemini Advanced thinking
                                     </div>
                                 </div>
                             </div>
@@ -116,15 +122,16 @@ export default function AiQaPanel({
                 )}
                 {formState.error && (
                     <Card className="mb-4 bg-destructive/5 border-destructive/20 rounded-xl">
-                        <CardContent className="p-4 flex items-center gap-2 text-destructive text-sm font-medium">
+                        <CardContent className="p-4 flex flex-col gap-2 text-destructive text-sm font-medium">
                             <p>{formState.error}</p>
+                            <p className="text-[10px] opacity-70">Check your terminal logs for more details.</p>
                         </CardContent>
                     </Card>
                 )}
                 {!formState.answer && !formState.error && (
                     <div className="flex flex-col items-center justify-center h-full text-center opacity-40 py-12">
                         <BrainCircuit className="h-16 w-16 mb-4" />
-                        <p className="text-sm font-medium max-w-[200px]">Ask anything about your exam syllabus or lesson concepts.</p>
+                        <p className="text-sm font-medium max-w-[200px]">I'm ready to provide deep insights on your exam prep.</p>
                     </div>
                 )}
             </ScrollArea>
@@ -133,7 +140,7 @@ export default function AiQaPanel({
             <div className="grid gap-4">
                 <Textarea
                     name="question"
-                    placeholder="e.g., Explain the visual shortcuts for solving quadratic equations in SSC exams..."
+                    placeholder="Ask a broad question: 'Explain the visual shortcuts for solving quadratic equations' or 'What are the top trends in SSC CGL Math?'"
                     className="min-h-[120px] rounded-2xl border-primary/10 focus-visible:ring-primary shadow-inner"
                     required
                 />
