@@ -1,6 +1,7 @@
+
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { CourseCard } from "@/components/course-card";
 import { Input } from "@/components/ui/input";
@@ -13,7 +14,7 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import Link from 'next/link';
 
-export default function Home() {
+function HomeContent() {
   const firestore = useFirestore();
   const searchParams = useSearchParams();
   const { isUserLoading: isUserAuthLoading } = useUser();
@@ -289,5 +290,17 @@ export default function Home() {
         </div>
       </section>
     </div>
+  );
+}
+
+export default function Home() {
+  return (
+    <Suspense fallback={
+      <div className="flex items-center justify-center min-h-screen">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    }>
+      <HomeContent />
+    </Suspense>
   );
 }
