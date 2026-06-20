@@ -1,3 +1,4 @@
+
 import { clsx, type ClassValue } from "clsx"
 import { twMerge } from "tailwind-merge"
 
@@ -21,15 +22,14 @@ export function getEmbedUrl(url: string, options: { autoplay?: boolean } = {}) {
     
     if (options.autoplay) {
       params.append("autoplay", "1");
-      // Mute=0 is requested, but browsers block unmuted autoplay.
-      // We set it to 0 as requested, though it may require a user click to start.
-      params.append("mute", "0"); 
+      // Mute=1 is usually required by browsers for unmuted autoplay
+      params.append("mute", "1"); 
     }
     
     params.append("rel", "0");
     params.append("modestbranding", "1");
     params.append("fs", "1"); // Keep fullscreen
-    params.append("controls", "1"); // Keep timeline/controls as requested
+    params.append("controls", "1"); // Keep timeline/controls
     params.append("iv_load_policy", "3"); 
     params.append("playsinline", "1");
     
@@ -48,7 +48,7 @@ export function getEmbedUrl(url: string, options: { autoplay?: boolean } = {}) {
     
     if (options.autoplay) {
       params.append("autoplay", "1");
-      params.append("muted", "0");
+      params.append("muted", "1");
     }
     
     params.append("badge", "0");
